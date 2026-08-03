@@ -1,0 +1,56 @@
+# AGENTS.md
+
+Go 1.24 monolith: personal-finance web app. One binary serving a JSON API + server-rendered pages (HTMX + `html/template`). No framework, no ORM, no DI container — everything is wired by hand in `cmd/server/main.go`.
+
+## Commands
+
+- Run: `make run` (builds `bin/server` and runs on `:8080`). Requires a local MySQL instance with a `finanzas` database.
+- Tests: `make test` (= `go test ./... -v`).
+  - **Unit tests** (no DB needed): `internal/service` (via `go-sqlmock`), `internal/middleware`, `internal/handler/helpers`.
+  - **Functional tests** (`cmd/server/integration_test.go`): exercise the full HTTP stack against a throwaway MySQL database (`finanzas_test_*`). They **auto-skip** if MySQL isn't reachable, so `go test ./...` still passes on a machine without a DB.
+  - The router is built by `buildRouter` in `cmd/server/router.go`, shared by `main.go` and the integration tests.
+- Verify: `go vet ./... && go build ./...`
+- Env: copy `.env.example` to `.env`. Load it with `set -a; source .env; set +a` — NOT `export $(cat .env)` because the MySQL DSN contains `&` which the shell would mis-parse.
+
+## Setup gotchas
+
+- Create the DB first: `mysql -u root -e "CREATE DATABASE IF NOT EXISTS finanzas CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"`. The app only creates tables, not the database itself.
+- Templates are embedded with `//go:embed` (`web/embed.go`), so template edits require rebuilding the binary.
+
+## Migrations (important)
+
+- At startup the app runs its OWN inline migration (`cmd/server/main.go:runMigrations`) only when `schema_migrations` max version < 1.
+- The `migrations/*.sql` files are for `make migrate-up/down` (golang-migrate) and are NOT run by the app automatically.
+- If you change the schema you must update BOTH the inline SQL in `runMigrations` (fresh DBs) and the matching `.sql` file. Existing DBs will not re-run the inline migration; bump the version tracking or apply manually.
+
+## Architecture
+
+Layered, dependency flow is strictly downward, constructed bottom-up in `main.go`:
+
+```
+handler → service → repository → MySQL   (all via concrete types; model holds shared structs)
+```
+
+- `internal/model/`: domain structs (`models.go`) and typed errors (`errors.go`).
+- `internal/middleware/auth.go`: JWT validation + injects userID into context; handlers read it via `middleware.UserIDFromContext(ctx)`.
+- `internal/handler/helpers.go`: `decodeBody` (accepts JSON **and** `x-www-form-urlencoded`), `respondMutation` (HTMX vs form vs JSON), `handleServiceError` (maps domain errors → HTTP status).
+
+### Conventions that differ from defaults
+
+- **Tenancy is mandatory**: every repository query filters by `usuario_id`. New queries must too, or users can read/modify each other's data.
+- **HTMX dual-mode**: requests carry `HX-Request: true`; `respondMutation` answers with an `HX-Redirect` header for HTMX, 303 for plain forms, JSON for API clients. Same endpoint serves both — preserve this.
+- **Domain errors, not HTTP errors, in services**: add sentinel errors to `internal/model/errors.go` and map them in `helpers.go:handleServiceError`.
+- **Pages vs API**: API handlers respond JSON; page rendering lives in `internal/handler/pages_handler.go`, which renders templates that `{{define "content"}}` (layout `web/templates/layout.html` wraps them).
+- **Money**: `float64` in Go structs, `DECIMAL(15,2)` in MySQL.
+- **Categories**: system categories have `es_personalizada = FALSE, usuario_id = NULL`; queries mix them with user ones via `WHERE es_personalizada = FALSE OR usuario_id = ?`.
+- **Month closure rule**: transacciones in a `cerrado` mes are immutable — `transaccion_service` returns `ErrMesCerrado` (→ HTTP 409). Preserve this on any new write path.
+
+## Auth / JWT
+
+- HS256, symmetric secret from `JWT_SECRET`. Claims: `sub` (userID), `exp`, `iat`. Never put sensitive data in claims (tokens are base64-readable, not encrypted).
+- Session cookie `token` is `HttpOnly` + `SameSite=Lax`; middleware accepts token from Authorization header, `?token=` query, or cookie.
+- New protected routes go inside the `r.Group(func(r chi.Router) { r.Use(middleware.JWTAuth(...)) })` block in `main.go`.
+
+## Adding a feature (house pattern)
+
+1. struct in `model/models.go` → 2. schema (both places above) → 3. repo methods (filter by `usuario_id`) → 4. service with validations → 5. handler → 6. wire + routes in `cmd/server/main.go` → 7. template + nav link in `layout.html`.

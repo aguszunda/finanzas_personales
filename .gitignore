@@ -1,0 +1,11 @@
+# Secrets (nunca commitear)
+.env
+
+# Build artifacts
+bin/
+
+# OS
+.DS_Store
+
+# Logs
+*.log

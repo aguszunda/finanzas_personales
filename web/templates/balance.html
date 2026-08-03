@@ -1,0 +1,98 @@
+{{define "content"}}
+{{if .error}}
+<div class="alert alert-error">{{.error}}</div>
+{{end}}
+{{with .mes}}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center">
+    <h2>📊 Balance {{.Periodo}}</h2>
+    <div>
+        <button class="btn btn-outline no-print" onclick="window.print()">🖨️ Imprimir</button>
+        {{if eq .Estado "abierto"}}
+        <button class="btn btn-success no-print" hx-post="/api/meses/{{.ID}}/cerrar" hx-confirm="¿Cerrar el mes {{.Periodo}}? No se podrá modificar." hx-swap="none">🔒 Cerrar Mes</button>
+        <button class="btn btn-outline no-print" hx-post="/api/meses/{{.ID}}/recalcular" hx-swap="none">🔄 Recalcular</button>
+        {{end}}
+    </div>
+</div>
+
+<div class="card" style="max-width:600px;margin:0 auto;font-family:'Courier New',monospace;font-size:0.9rem">
+    <div style="text-align:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:2px solid var(--text)">
+        <h2>BALANCE MENSUAL</h2>
+        <p style="font-size:1.1rem;margin-top:0.25rem">{{.Periodo}} {{if eq .Estado "cerrado"}}🔒 Cerrado{{else}}📂 Abierto{{end}}</p>
+    </div>
+
+    <div style="margin-bottom:1rem">
+        <p style="font-weight:700;border-bottom:1px solid var(--border);padding-bottom:0.25rem">INGRESOS</p>
+        <p style="text-align:right;font-size:1.25rem;font-weight:700;color:var(--success);margin-top:0.5rem">
+            $ {{printf "%.2f" .IngresosTotal}}
+        </p>
+    </div>
+
+    <div style="margin-bottom:1rem">
+        <p style="font-weight:700;border-bottom:1px solid var(--border);padding-bottom:0.25rem">EGRESOS</p>
+        <p style="text-align:right;font-size:1.25rem;font-weight:700;color:var(--danger);margin-top:0.5rem">
+            $ {{printf "%.2f" .EgresosTotal}}
+        </p>
+    </div>
+
+    <div style="margin-bottom:1rem;padding:0.75rem;background:var(--bg);border-radius:8px">
+        <div style="display:flex;justify-content:space-between;font-weight:700;font-size:1.1rem">
+            <span>RESULTADO NETO</span>
+            <span style="color:{{if ge .Superavit 0.0}}var(--success){{else}}var(--danger){{end}}">
+                $ {{printf "%.2f" .Superavit}}
+            </span>
+        </div>
+        {{if .TasaAhorro}}
+        <div style="display:flex;justify-content:space-between;margin-top:0.5rem">
+            <span>Tasa de Ahorro</span>
+            <span style="font-weight:600">{{printf "%.1f" (deref .TasaAhorro)}}%</span>
+        </div>
+        {{end}}
+    </div>
+
+    <div style="border-top:2px solid var(--text);padding-top:1rem">
+        <div style="display:flex;justify-content:space-between">
+            <span>Ahorro Acumulado</span>
+            <span style="font-weight:600">$ {{printf "%.2f" .AhorroAcumulado}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.25rem">
+            <span>Pasivos</span>
+            <span style="font-weight:600;color:var(--danger)">$ {{printf "%.2f" .PasivosTotal}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.5rem;font-size:1.1rem;font-weight:700;border-top:1px solid var(--border);padding-top:0.5rem">
+            <span>PATRIMONIO NETO</span>
+            <span>$ {{printf "%.2f" .Patrimonio}}</span>
+        </div>
+    </div>
+</div>
+{{end}}
+
+<div class="card no-print">
+    <h3 style="margin-bottom:0.75rem">Transacciones del Período</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Categoría</th>
+                <th>Descripción</th>
+                <th>Monto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .transacciones}}
+            <tr>
+                <td>{{.Fecha}}</td>
+                <td><span class="badge badge-{{.Tipo}}">{{if eq .Tipo "ingreso"}}Ingreso{{else}}Egreso{{end}}</span></td>
+                <td>{{.Categoria}}</td>
+                <td>{{.Descripcion}}</td>
+                <td style="font-weight:600;color:{{if eq .Tipo "ingreso"}}var(--success){{else}}var(--danger){{end}}">
+                    {{if eq .Tipo "ingreso"}}+{{else}}-{{end}}$ {{printf "%.2f" .Monto}}
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="5" class="text-center" style="padding:2rem;color:var(--text-secondary)">No hay transacciones en este período</td></tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}

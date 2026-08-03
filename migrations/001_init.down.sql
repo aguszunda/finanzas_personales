@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS costos_fijos;
+DROP TABLE IF EXISTS transacciones;
+DROP TABLE IF EXISTS meses;
+DROP TABLE IF EXISTS categorias;
+DROP TABLE IF EXISTS usuarios;

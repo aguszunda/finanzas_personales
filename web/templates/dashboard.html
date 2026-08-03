@@ -1,0 +1,127 @@
+{{define "content"}}
+{{if .error}}
+<div class="alert alert-error">{{.error}}</div>
+{{else}}
+<div class="grid">
+    <div class="card stat">
+        <div class="value positive">$ {{printf "%.2f" .d.MesActual.IngresosTotal}}</div>
+        <div class="label">💰 Ingresos del Mes</div>
+    </div>
+    <div class="card stat">
+        <div class="value negative">$ {{printf "%.2f" .d.MesActual.EgresosTotal}}</div>
+        <div class="label">💸 Egresos del Mes</div>
+    </div>
+    <div class="card stat">
+        <div class="value {{if ge .d.MesActual.Superavit 0.0}}positive{{else}}negative{{end}}">
+            $ {{printf "%.2f" .d.MesActual.Superavit}}
+        </div>
+        <div class="label">📊 Resultado Neto</div>
+    </div>
+    <div class="card stat">
+        <div class="value {{if ge (deref .d.MesActual.TasaAhorro) 15.0}}positive{{else}}negative{{end}}">
+            {{printf "%.1f" (deref .d.MesActual.TasaAhorro)}}%
+        </div>
+        <div class="label">📈 Tasa de Ahorro (objetivo >15%)</div>
+    </div>
+</div>
+
+{{if .d.MesAnterior}}
+<div class="card">
+    <h3 style="margin-bottom:0.5rem">Comparación con mes anterior ({{.d.MesAnterior.Periodo}})</h3>
+    <div class="grid">
+        <div>
+            <span class="label" style="color:var(--text-secondary)">Ingresos</span>
+            <p style="font-weight:600">$ {{printf "%.2f" .d.MesActual.IngresosTotal}} <small style="color:var(--text-secondary)">vs $ {{printf "%.2f" .d.MesAnterior.IngresosTotal}}</small></p>
+        </div>
+        <div>
+            <span class="label" style="color:var(--text-secondary)">Egresos</span>
+            <p style="font-weight:600">$ {{printf "%.2f" .d.MesActual.EgresosTotal}} <small style="color:var(--text-secondary)">vs $ {{printf "%.2f" .d.MesAnterior.EgresosTotal}}</small></p>
+        </div>
+    </div>
+</div>
+{{end}}
+
+<div class="card">
+    <h3 style="margin-bottom:0.5rem">Gastos por Categoría</h3>
+    {{if .d.GastosPorCategoria}}
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start">
+        <div style="flex:1;min-width:280px;max-width:400px">
+            <canvas id="chart-categorias" style="max-height:280px"></canvas>
+        </div>
+        <div style="flex:1;min-width:280px">
+            <table>
+                <thead>
+                    <tr><th>Categoría</th><th class="text-right">Monto</th><th class="text-right">%</th></tr>
+                </thead>
+                <tbody>
+                    {{range .d.GastosPorCategoria}}
+                    <tr>
+                        <td>{{.Icono}} {{.Categoria}}</td>
+                        <td class="text-right">$ {{printf "%.2f" .Monto}}</td>
+                        <td class="text-right">{{printf "%.1f" .Porcentaje}}%</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {{else}}
+    <p class="empty-state">Sin egresos este mes</p>
+    {{end}}
+</div>
+
+<div class="card">
+    <h3 style="margin-bottom:0.5rem">Últimos Movimientos</h3>
+    {{if .d.UltimosMovimientos}}
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Categoría</th>
+                <th>Descripción</th>
+                <th class="text-right">Monto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .d.UltimosMovimientos}}
+            <tr>
+                <td>{{.Fecha}}</td>
+                <td><span class="badge badge-{{.Tipo}}">{{if eq .Tipo "ingreso"}}💰{{else}}💸{{end}}</span></td>
+                <td>{{.Categoria}}</td>
+                <td>{{.Descripcion}}</td>
+                <td class="text-right" style="font-weight:600;color:{{if eq .Tipo "ingreso"}}var(--success){{else}}var(--danger){{end}}">
+                    {{if eq .Tipo "ingreso"}}+{{else}}-{{end}}$ {{printf "%.2f" .Monto}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p class="empty-state">Aún no hay movimientos</p>
+    {{end}}
+</div>
+
+<script>
+(function(){
+    var labels = [];
+    var values = [];
+    {{range .d.GastosPorCategoria}}
+    labels.push({{printf "%q" .Categoria}});
+    values.push({{.Monto}});
+    {{end}}
+    if (labels.length) {
+        var colors = ['#0d6efd','#198754','#dc3545','#ffc107','#0dcaf0','#6f42c1','#fd7e14','#20c997','#d63384','#6610f2'];
+        new Chart(document.getElementById('chart-categorias'), {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{ data: values, backgroundColor: colors }]
+            },
+            options: { plugins: { legend: { position: 'bottom' } }, maintainAspectRatio: false }
+        });
+    }
+})();
+</script>
+{{end}}
+{{end}}

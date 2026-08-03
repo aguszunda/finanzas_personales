@@ -1,0 +1,43 @@
+{{define "content"}}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center">
+    <h2>📅 Meses</h2>
+    <a class="btn btn-outline" href="/api/balance/page">📊 Balance actual</a>
+</div>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Período</th>
+                <th>Estado</th>
+                <th>Ingresos</th>
+                <th>Egresos</th>
+                <th>Resultado</th>
+                <th class="no-print">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .meses}}
+            <tr>
+                <td>{{.Periodo}}</td>
+                <td>
+                    <span class="badge" style="background:{{if eq .Estado "cerrado"}}#e2e3e5;color:#41464b{{else}}#d1e7dd;color:#0f5132{{end}}">
+                        {{if eq .Estado "cerrado"}}🔒 Cerrado{{else}}📂 Abierto{{end}}
+                    </span>
+                </td>
+                <td>$ {{printf "%.2f" .IngresosTotal}}</td>
+                <td>$ {{printf "%.2f" .EgresosTotal}}</td>
+                <td style="font-weight:600;color:{{if ge .Superavit 0.0}}var(--success){{else}}var(--danger){{end}}">
+                    $ {{printf "%.2f" .Superavit}}
+                </td>
+                <td class="no-print">
+                    <a class="btn btn-outline btn-sm" href="/api/balance/{{.ID}}/page">Ver Balance</a>
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="6" class="text-center" style="padding:2rem;color:var(--text-secondary)">No hay meses registrados</td></tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}
