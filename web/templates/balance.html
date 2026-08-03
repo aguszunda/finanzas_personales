@@ -22,14 +22,30 @@
 
     <div style="margin-bottom:1rem">
         <p style="font-weight:700;border-bottom:1px solid var(--border);padding-bottom:0.25rem">INGRESOS</p>
-        <p style="text-align:right;font-size:1.25rem;font-weight:700;color:var(--success);margin-top:0.5rem">
+        {{range $.transacciones}}
+        {{if eq .Tipo "ingreso"}}
+        <div style="display:flex;justify-content:space-between;margin-top:0.3rem">
+            <span>{{.Fecha}} · {{.Categoria}}{{if .Descripcion}} · {{.Descripcion}}{{end}}</span>
+            <span style="font-weight:600;color:var(--success)">$ {{printf "%.2f" .Monto}}</span>
+        </div>
+        {{end}}
+        {{end}}
+        <p style="text-align:right;font-size:1.25rem;font-weight:700;color:var(--success);margin-top:0.5rem;padding-top:0.25rem;border-top:1px solid var(--border)">
             $ {{printf "%.2f" .IngresosTotal}}
         </p>
     </div>
 
     <div style="margin-bottom:1rem">
         <p style="font-weight:700;border-bottom:1px solid var(--border);padding-bottom:0.25rem">EGRESOS</p>
-        <p style="text-align:right;font-size:1.25rem;font-weight:700;color:var(--danger);margin-top:0.5rem">
+        {{range $.transacciones}}
+        {{if eq .Tipo "egreso"}}
+        <div style="display:flex;justify-content:space-between;margin-top:0.3rem">
+            <span>{{.Fecha}} · {{.Categoria}}{{if .Descripcion}} · {{.Descripcion}}{{end}}</span>
+            <span style="font-weight:600;color:var(--danger)">$ {{printf "%.2f" .Monto}}</span>
+        </div>
+        {{end}}
+        {{end}}
+        <p style="text-align:right;font-size:1.25rem;font-weight:700;color:var(--danger);margin-top:0.5rem;padding-top:0.25rem;border-top:1px solid var(--border)">
             $ {{printf "%.2f" .EgresosTotal}}
         </p>
     </div>
