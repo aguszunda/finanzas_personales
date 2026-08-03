@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"administracion-financiera/internal/model"
+	"finanzas_personales/internal/model"
 
 	"github.com/golang-jwt/jwt/v5"
 )

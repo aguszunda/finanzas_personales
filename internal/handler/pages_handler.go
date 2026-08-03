@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"administracion-financiera/internal/middleware"
-	"administracion-financiera/internal/model"
-	"administracion-financiera/internal/repository"
-	"administracion-financiera/internal/service"
+	"finanzas_personales/internal/middleware"
+	"finanzas_personales/internal/model"
+	"finanzas_personales/internal/repository"
+	"finanzas_personales/internal/service"
 
 	"github.com/go-chi/chi/v5"
 )

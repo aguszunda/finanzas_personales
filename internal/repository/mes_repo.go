@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"administracion-financiera/internal/model"
+	"finanzas_personales/internal/model"
 )
 
 type MesRepo struct {

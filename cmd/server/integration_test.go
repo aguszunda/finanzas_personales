@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"administracion-financiera/internal/config"
+	"finanzas_personales/internal/config"
 
 	"github.com/go-sql-driver/mysql"
 )

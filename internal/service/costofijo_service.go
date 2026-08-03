@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"administracion-financiera/internal/model"
-	"administracion-financiera/internal/repository"
+	"finanzas_personales/internal/model"
+	"finanzas_personales/internal/repository"
 )
 
 type CostoFijoService struct {

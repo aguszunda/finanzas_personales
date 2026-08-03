@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"administracion-financiera/internal/middleware"
-	"administracion-financiera/internal/repository"
+	"finanzas_personales/internal/middleware"
+	"finanzas_personales/internal/repository"
 )
 
 type CategoriaHandler struct {

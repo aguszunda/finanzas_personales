@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"administracion-financiera/internal/middleware"
-	"administracion-financiera/internal/service"
+	"finanzas_personales/internal/middleware"
+	"finanzas_personales/internal/service"
 
 	"github.com/go-chi/chi/v5"
 )

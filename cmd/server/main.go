@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"administracion-financiera/internal/config"
+	"finanzas_personales/internal/config"
 
 	_ "github.com/go-sql-driver/mysql"
 )

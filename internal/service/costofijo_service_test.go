@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"testing"
 
-	"administracion-financiera/internal/model"
-	"administracion-financiera/internal/repository"
+	"finanzas_personales/internal/model"
+	"finanzas_personales/internal/repository"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )

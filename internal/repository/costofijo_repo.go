@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"administracion-financiera/internal/model"
+	"finanzas_personales/internal/model"
 )
 
 type CostoFijoRepo struct {

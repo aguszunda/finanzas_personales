@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"administracion-financiera/internal/middleware"
-	"administracion-financiera/internal/service"
+	"finanzas_personales/internal/middleware"
+	"finanzas_personales/internal/service"
 )
 
 type DashboardHandler struct {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"administracion-financiera/internal/model"
-	"administracion-financiera/internal/repository"
+	"finanzas_personales/internal/model"
+	"finanzas_personales/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"

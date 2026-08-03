@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"time"
 
-	"administracion-financiera/internal/config"
-	"administracion-financiera/internal/handler"
-	"administracion-financiera/internal/middleware"
-	"administracion-financiera/internal/repository"
-	"administracion-financiera/internal/service"
-	"administracion-financiera/web"
+	"finanzas_personales/internal/config"
+	"finanzas_personales/internal/handler"
+	"finanzas_personales/internal/middleware"
+	"finanzas_personales/internal/repository"
+	"finanzas_personales/internal/service"
+	"finanzas_personales/web"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"

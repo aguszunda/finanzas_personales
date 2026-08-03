@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"administracion-financiera/internal/middleware"
-	"administracion-financiera/internal/model"
+	"finanzas_personales/internal/middleware"
+	"finanzas_personales/internal/model"
 )
 
 type testPayload struct {

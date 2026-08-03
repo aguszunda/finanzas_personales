@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"administracion-financiera/internal/service"
+	"finanzas_personales/internal/service"
 )
 
 type AuthHandler struct {

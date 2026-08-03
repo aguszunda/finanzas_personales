@@ -1,8 +1,9 @@
-module administracion-financiera
+module finanzas_personales
 
 go 1.24
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/cors v1.2.1
 	github.com/go-sql-driver/mysql v1.9.3
@@ -10,7 +11,4 @@ require (
 	golang.org/x/crypto v0.32.0
 )
 
-require (
-	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
-)
+require filippo.io/edwards25519 v1.1.0 // indirect

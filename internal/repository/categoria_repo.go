@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"administracion-financiera/internal/model"
+	"finanzas_personales/internal/model"
 )
 
 type CategoriaRepo struct {
