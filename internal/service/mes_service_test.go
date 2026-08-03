@@ -51,6 +51,10 @@ const (
 		 ORDER BY t.fecha DESC, t.created_at DESC`
 	queryMesUpdate = `UPDATE meses SET estado=?, ingresos_total=?, egresos_total=?, superavit=?, tasa_ahorro=?, ahorro_acumulado=?, pasivos_total=?, patrimonio=?
 		 WHERE id=? AND usuario_id=?`
+	queryCostosFijosActivos = `SELECT cf.id, cf.usuario_id, cf.categoria_id, c.nombre, cf.descripcion, cf.monto_estimado, cf.dia_vencimiento, cf.activo, cf.tipo_periodo, cf.created_at
+		 FROM costos_fijos cf JOIN categorias c ON c.id = cf.categoria_id
+		 WHERE cf.usuario_id = ? AND cf.activo = TRUE
+		 ORDER BY cf.dia_vencimiento, cf.descripcion`
 )
 
 func newMesService(t *testing.T) (*MesService, sqlmock.Sqlmock) {
@@ -97,5 +101,46 @@ func TestMesService_Recalcular(t *testing.T) {
 	}
 	if mes.TasaAhorro == nil || *mes.TasaAhorro != 70 {
 		t.Errorf("expected tasa ahorro 70, got %v", mes.TasaAhorro)
+	}
+}
+
+func TestMesService_Balance_RecomputaTotales(t *testing.T) {
+	svc, mock := newMesService(t)
+
+	created := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta(queryMesRecalcularByID)).
+		WithArgs(int64(9), int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "usuario_id", "periodo", "estado", "ingresos_total", "egresos_total", "superavit", "tasa_ahorro", "ahorro_acumulado", "pasivos_total", "patrimonio", "created_at"}).
+			AddRow(9, 1, "2026-08", "abierto", 0, 0, 0, nil, 0, 0, 0, created))
+
+	// SyncFijosPeriodo: FindOrCreate (FindByPeriodo) + FindActivos (sin fijos).
+	mock.ExpectQuery(regexp.QuoteMeta(queryMesByPeriodo)).
+		WithArgs(int64(1), "2026-08").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "usuario_id", "periodo", "estado", "ingresos_total", "egresos_total", "superavit", "tasa_ahorro", "ahorro_acumulado", "pasivos_total", "patrimonio", "created_at"}).
+			AddRow(9, 1, "2026-08", "abierto", 0, 0, 0, nil, 0, 0, 0, created))
+	mock.ExpectQuery(regexp.QuoteMeta(queryCostosFijosActivos)).
+		WithArgs(int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "usuario_id", "categoria_id", "categoria", "descripcion", "monto_estimado", "dia_vencimiento", "activo", "tipo_periodo", "created_at"}))
+
+	cols := []string{"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "categoria", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"}
+	rows := sqlmock.NewRows(cols).
+		AddRow(1, 1, "ingreso", 100000.0, created, 1, "Sueldo", "Sueldo", "transferencia", false, nil, nil, "confirmado", 9, created, created).
+		AddRow(2, 1, "egreso", 30000.0, created, 5, "Alquiler", "Alquiler", "debito", false, nil, nil, "confirmado", 9, created, created)
+	mock.ExpectQuery(regexp.QuoteMeta(queryTransaccionPeriodo)).
+		WithArgs(int64(1), "2026-08-01", "2026-08-31").
+		WillReturnRows(rows)
+
+	mes, transacciones, err := svc.Balance(context.Background(), 1, 9)
+	if err != nil {
+		t.Fatalf("Balance: %v", err)
+	}
+	if mes.IngresosTotal != 100000 || mes.EgresosTotal != 30000 || mes.Superavit != 70000 {
+		t.Errorf("unexpected totals: ingresos=%v egresos=%v superavit=%v", mes.IngresosTotal, mes.EgresosTotal, mes.Superavit)
+	}
+	if mes.TasaAhorro == nil || *mes.TasaAhorro != 70 {
+		t.Errorf("expected tasa ahorro 70, got %v", mes.TasaAhorro)
+	}
+	if len(transacciones) != 2 {
+		t.Errorf("expected 2 transacciones, got %d", len(transacciones))
 	}
 }

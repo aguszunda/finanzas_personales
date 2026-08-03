@@ -370,11 +370,13 @@ func TestMeses_CierreYCostoFijoPrecargado(t *testing.T) {
 	if mes["estado"] != "cerrado" {
 		t.Errorf("expected cerrado, got %v", mes["estado"])
 	}
-	if mes["ingresos_total"].(float64) != 100000 || mes["egresos_total"].(float64) != 40000 {
+	// The active fixed cost (5000) is materialized into the current month on
+	// creation, so it counts in the close totals too.
+	if mes["ingresos_total"].(float64) != 100000 || mes["egresos_total"].(float64) != 45000 {
 		t.Errorf("unexpected totals: %v / %v", mes["ingresos_total"], mes["egresos_total"])
 	}
-	if mes["superavit"].(float64) != 60000 {
-		t.Errorf("expected superavit 60000, got %v", mes["superavit"])
+	if mes["superavit"].(float64) != 55000 {
+		t.Errorf("expected superavit 55000, got %v", mes["superavit"])
 	}
 
 	// Closed month is immutable: a new transaction must be rejected.
@@ -455,7 +457,7 @@ func TestPages_Render(t *testing.T) {
 		{"/api/dashboard/page", []string{"Ingresos del Mes", "Egresos del Mes", "Tasa de Ahorro"}},
 		{"/api/transacciones/page", []string{"Transacciones", "Todos", `value="` + periodoActual + `"`}},
 		{"/api/costos-fijos/page", []string{"Costos Fijos", "Internet"}},
-		{"/api/balance/page", []string{"Balance", "RESULTADO NETO"}},
+		{"/api/balance/page", []string{"Balance", "RESULTADO NETO", "$ 50000.00", "$ 15000.00", "$ 35000.00"}},
 		{"/api/meses/page", []string{"Meses", periodoActual}},
 	}
 	for _, tt := range tests {

@@ -32,7 +32,7 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 
 	authSvc := service.NewAuthService(usuarioRepo, []byte(cfg.JWTSecret), cfg.JWTExpiration)
 	transSvc := service.NewTransaccionService(transaccionRepo, mesRepo)
-	cfSvc := service.NewCostoFijoService(costoFijoRepo)
+	cfSvc := service.NewCostoFijoService(costoFijoRepo, mesRepo)
 	mesSvc := service.NewMesService(mesRepo, transaccionRepo, costoFijoRepo)
 	dashSvc := service.NewDashboardService(mesRepo, transaccionRepo, categoriaRepo)
 

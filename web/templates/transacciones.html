@@ -108,7 +108,7 @@ function resetTransaccionForm() {
     form.reset();
     form.setAttribute('hx-post', '/api/transacciones');
     form.removeAttribute('hx-put');
-    form.querySelector('#form-modal-title').textContent = 'Nueva Transacción';
+    document.getElementById('form-modal-title').textContent = 'Nueva Transacción';
 }
 
 function openNewForm() {
@@ -128,7 +128,7 @@ function editTransaccion(id) {
             form.reset();
             form.removeAttribute('hx-post');
             form.setAttribute('hx-put', '/api/transacciones/'+id);
-            form.querySelector('#form-modal-title').textContent = 'Editar Transacción';
+            document.getElementById('form-modal-title').textContent = 'Editar Transacción';
             form.querySelector('[name="tipo"]').value = t.tipo;
             form.querySelector('[name="monto"]').value = t.monto;
             form.querySelector('[name="fecha"]').value = t.fecha;
