@@ -167,3 +167,67 @@ func TestHandleServiceError_Mapping(t *testing.T) {
 		}
 	}
 }
+
+type testPayloadTypes struct {
+	UintVal   uint32   `json:"uint_val"`
+	Float32V  float32  `json:"float32_val"`
+	PtrFloat  *float64 `json:"ptr_float"`
+	PtrString *string  `json:"ptr_string"`
+	PtrUint   *uint    `json:"ptr_uint"`
+	StructPtr *struct {
+		X int `json:"x"`
+	} `json:"struct_ptr"`
+}
+
+func TestDecodeBody_FormTipos(t *testing.T) {
+	r := formRequest(t, "uint_val=42&float32_val=1.5&ptr_float=9.5&ptr_string=hola")
+	var p testPayloadTypes
+	if err := decodeBody(r, &p); err != nil {
+		t.Fatalf("decodeBody: %v", err)
+	}
+	if p.UintVal != 42 {
+		t.Errorf("uint_val = %d", p.UintVal)
+	}
+	if p.Float32V != 1.5 {
+		t.Errorf("float32_val = %v", p.Float32V)
+	}
+	if p.PtrFloat == nil || *p.PtrFloat != 9.5 {
+		t.Errorf("ptr_float = %v", p.PtrFloat)
+	}
+	if p.PtrString == nil || *p.PtrString != "hola" {
+		t.Errorf("ptr_string = %v", p.PtrString)
+	}
+}
+
+func TestDecodeBody_FormValoresInvalidosSeIgnoran(t *testing.T) {
+	// Valores no parseables dejan el campo en cero, sin error; los punteros a
+	// tipos no soportados y los strings vacíos no se setean.
+	r := formRequest(t, "uint_val=abc&float32_val=abc&ptr_string=&struct_ptr=x")
+	var p testPayloadTypes
+	if err := decodeBody(r, &p); err != nil {
+		t.Fatalf("decodeBody: %v", err)
+	}
+	if p.UintVal != 0 || p.Float32V != 0 {
+		t.Errorf("invalid numeric values should be ignored: %+v", p)
+	}
+	if p.PtrString != nil || p.StructPtr != nil {
+		t.Errorf("unsupported/empty pointer values should stay nil: %+v", p)
+	}
+}
+
+func TestDecodeBody_NonStructPointer(t *testing.T) {
+	var n int
+	r := formRequest(t, "x=1")
+	if err := decodeBody(r, &n); err == nil {
+		t.Fatal("expected error for non-struct pointer")
+	}
+}
+
+func TestRespondJSON_EncodeError(t *testing.T) {
+	rec := httptest.NewRecorder()
+	// Un canal no es serializable a JSON: cae en la rama de error del encoder.
+	respondJSON(rec, http.StatusOK, make(chan int))
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+}

@@ -475,6 +475,222 @@ func TestPages_Render(t *testing.T) {
 	}
 }
 
+func TestCostosFijos_GetUpdate(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "cfget@test.com")
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/costos-fijos", token,
+		`{"categoria_id":6,"descripcion":"Gimnasio","monto_estimado":8000,"dia_vencimiento":10,"tipo_periodo":"mensual"}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var cf map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &cf)
+	id := int64(cf["id"].(float64))
+
+	rec = doReq(t, env.router, http.MethodGet, fmt.Sprintf("/api/costos-fijos/%d", id), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get by id: expected 200, got %d", rec.Code)
+	}
+	json.Unmarshal(rec.Body.Bytes(), &cf)
+	if cf["descripcion"] != "Gimnasio" {
+		t.Errorf("unexpected descripcion: %v", cf["descripcion"])
+	}
+
+	rec = doReq(t, env.router, http.MethodPut, fmt.Sprintf("/api/costos-fijos/%d", id), token,
+		`{"categoria_id":6,"descripcion":"Gimnasio Premium","monto_estimado":9000,"dia_vencimiento":12,"tipo_periodo":"mensual"}`,
+		"application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	json.Unmarshal(rec.Body.Bytes(), &cf)
+	if cf["descripcion"] != "Gimnasio Premium" || cf["monto_estimado"].(float64) != 9000 {
+		t.Errorf("update not applied: %v", cf["descripcion"])
+	}
+
+	// Toggle desactiva y luego reactiva el costo fijo (activo vuelve a true y
+	// se re-materializa el costo en el mes actual vía syncMesActual).
+	rec = doReq(t, env.router, http.MethodPatch, fmt.Sprintf("/api/costos-fijos/%d/toggle", id), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("toggle off: expected 200, got %d", rec.Code)
+	}
+	json.Unmarshal(rec.Body.Bytes(), &cf)
+	if cf["activo"].(bool) != false {
+		t.Error("expected activo=false after first toggle")
+	}
+
+	rec = doReq(t, env.router, http.MethodPatch, fmt.Sprintf("/api/costos-fijos/%d/toggle", id), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("toggle on: expected 200, got %d", rec.Code)
+	}
+	json.Unmarshal(rec.Body.Bytes(), &cf)
+	if cf["activo"].(bool) != true {
+		t.Error("expected activo=true after reactivating")
+	}
+
+	rec = doReq(t, env.router, http.MethodPut, fmt.Sprintf("/api/costos-fijos/%d", id), token,
+		`{"categoria_id":6,"descripcion":"x","monto_estimado":0,"dia_vencimiento":5,"tipo_periodo":"mensual"}`,
+		"application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update with monto_estimado 0: expected 200 (sin validación de servicio), got %d", rec.Code)
+	}
+
+	rec = doReq(t, env.router, http.MethodPost, "/api/costos-fijos", token,
+		`{esto-no-es-json`,
+		"application/json", false)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid create body: expected 400, got %d", rec.Code)
+	}
+
+	rec = doReq(t, env.router, http.MethodGet, "/api/costos-fijos/999999", token, "", "", false)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("get missing: expected 404, got %d", rec.Code)
+	}
+
+	rec = doReq(t, env.router, http.MethodPut, "/api/costos-fijos/999999", token,
+		`{"categoria_id":6,"descripcion":"x","monto_estimado":100,"dia_vencimiento":5}`,
+		"application/json", false)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("update missing: expected 404, got %d", rec.Code)
+	}
+}
+
+func TestMeses_ListGetRecalcular(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "mes2@test.com")
+	dia := time.Now().Format("2006-01-02")
+	createTransaction(t, env, token, "ingreso", 100000, dia)
+
+	rec := doReq(t, env.router, http.MethodGet, "/api/meses", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list meses: expected 200, got %d", rec.Code)
+	}
+	var lista []map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &lista)
+	if len(lista) == 0 {
+		t.Fatal("expected at least the current month in the list")
+	}
+
+	rec = doReq(t, env.router, http.MethodGet, "/api/meses/current", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("current: expected 200, got %d", rec.Code)
+	}
+	var mes map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &mes)
+	mesID := int64(mes["id"].(float64))
+
+	rec = doReq(t, env.router, http.MethodGet, fmt.Sprintf("/api/meses/%d", mesID), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get by id: expected 200, got %d", rec.Code)
+	}
+	json.Unmarshal(rec.Body.Bytes(), &mes)
+	if mes["periodo"] != time.Now().Format("2006-01") {
+		t.Errorf("unexpected periodo: %v", mes["periodo"])
+	}
+
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/meses/%d/recalcular", mesID), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("recalcular: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	json.Unmarshal(rec.Body.Bytes(), &mes)
+	if mes["ingresos_total"].(float64) != 100000 {
+		t.Errorf("expected ingresos_total 100000 after recalcular, got %v", mes["ingresos_total"])
+	}
+
+	rec = doReq(t, env.router, http.MethodGet, "/api/meses/999999", token, "", "", false)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("get missing month: expected 404, got %d", rec.Code)
+	}
+
+	rec = doReq(t, env.router, http.MethodPost, "/api/meses/999999/recalcular", token, "", "", false)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("recalcular missing month: expected 404, got %d", rec.Code)
+	}
+}
+
+func TestCategorias_List(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "cat@test.com")
+
+	rec := doReq(t, env.router, http.MethodGet, "/api/categorias", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list categorias: expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Sueldo") || !strings.Contains(rec.Body.String(), "Alquiler") {
+		t.Errorf("expected system categories in response, got: %s", rec.Body.String())
+	}
+}
+
+func TestPages_LoginRegister(t *testing.T) {
+	env := newTestEnv(t)
+
+	rec := doReq(t, env.router, http.MethodGet, "/login", "", "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login page: expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Iniciar Sesión") {
+		t.Error("login page missing marker")
+	}
+
+	rec = doReq(t, env.router, http.MethodGet, "/register", "", "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("register page: expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Crear Cuenta") {
+		t.Error("register page missing marker")
+	}
+}
+
+func TestTransacciones_CrossUserIsolation(t *testing.T) {
+	env := newTestEnv(t)
+	tokenA, _ := registerJSON(t, env, "owner@test.com")
+	tokenB, _ := registerJSON(t, env, "other@test.com")
+
+	// owner crea una transacción
+	tx := createTransaction(t, env, tokenA, "ingreso", 5000, time.Now().Format("2006-01-02"))
+	id := int64(tx["id"].(float64))
+
+	// El otro usuario no puede verla ni borrarla (tenancy obligatoria).
+	rec := doReq(t, env.router, http.MethodGet, fmt.Sprintf("/api/transacciones/%d", id), tokenB, "", "", false)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-user get: expected 404, got %d", rec.Code)
+	}
+	rec = doReq(t, env.router, http.MethodDelete, fmt.Sprintf("/api/transacciones/%d", id), tokenB, "", "", false)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-user delete: expected 404, got %d", rec.Code)
+	}
+}
+
+func TestDashboard_EgresosSoloYMuchosMovimientos(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "dash2@test.com")
+	dia := time.Now().Format("2006-01-02")
+
+	// Sin ingresos: la tasa de ahorro debe quedar vacía.
+	for i := 0; i < 6; i++ {
+		createTransaction(t, env, token, "egreso", 1000, dia)
+	}
+
+	rec := doReq(t, env.router, http.MethodGet, "/api/dashboard", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dashboard: expected 200, got %d", rec.Code)
+	}
+	var dash map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &dash)
+	mesActual, _ := dash["mes_actual"].(map[string]interface{})
+	if mesActual == nil {
+		t.Fatal("mes_actual missing")
+	}
+	if mesActual["tasa_ahorro"] != nil {
+		t.Errorf("expected tasa_ahorro nil with no ingresos, got %v", mesActual["tasa_ahorro"])
+	}
+	ultimos, _ := dash["ultimos_movimientos"].([]interface{})
+	if len(ultimos) != 5 {
+		t.Errorf("expected 5 ultimos_movimientos, got %d", len(ultimos))
+	}
+}
+
 func TestBalancePage_WithClosedMonthAndError(t *testing.T) {
 	env := newTestEnv(t)
 	token, _ := registerJSON(t, env, "balance@test.com")

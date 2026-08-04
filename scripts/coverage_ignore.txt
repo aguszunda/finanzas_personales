@@ -1,0 +1,14 @@
+# Archivos que quedan fuera del cálculo de cobertura.
+#
+# Cada línea es un patrón de expresiones regulares que se matchea contra la
+# ruta del archivo dentro del profile de `go tool cover` (ej. `cmd/server/main.go`).
+# Las líneas vacías y las que empiezan con `#` se ignoran.
+#
+# Solo deben agregarse aquí archivos que NO PUEDEN testearse por diseño:
+#
+# cmd/server/main.go — entrypoint del binario (package main). `main()` orquesta
+# la configuración, la conexión, las señales y el shutdown; no puede importarse
+# desde un test ni aislarse sin refactorizaciones forzadas. Nota: runMigrations()
+# sí se ejecuta en los tests de integración a través de newTestEnv, y se sigue
+# contando la parte cubierta de este archivo que quede fuera del patrón.
+^cmd/server/main\.go

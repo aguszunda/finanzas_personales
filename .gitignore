@@ -4,6 +4,15 @@
 # Build artifacts
 bin/
 
+# Coverage artifacts
+coverage.out
+coverage.filtered.out
+coverage.html
+
+# Test reports
+test-output.txt
+junit.xml
+
 # OS
 .DS_Store
 

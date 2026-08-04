@@ -1,4 +1,4 @@
-.PHONY: build run test clean dev
+.PHONY: build run test coverage clean dev
 
 build:
 	go build -o bin/server ./cmd/server
@@ -11,6 +11,9 @@ dev:
 
 test:
 	go test ./... -v
+
+coverage:
+	MIN_COVERAGE=85 ./scripts/coverage.sh
 
 clean:
 	rm -rf bin/

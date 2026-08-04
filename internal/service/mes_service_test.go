@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,5 +144,141 @@ func TestMesService_Balance_RecomputaTotales(t *testing.T) {
 	}
 	if len(transacciones) != 2 {
 		t.Errorf("expected 2 transacciones, got %d", len(transacciones))
+	}
+}
+
+func TestMesService_Cerrar_AlreadyClosed(t *testing.T) {
+	svc, mock := newMesService(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(queryMesByID)).
+		WithArgs(int64(9), int64(1)).
+		WillReturnRows(mesRow(9, "2026-08", "cerrado"))
+
+	_, err := svc.Cerrar(context.Background(), 1, 9)
+	if err == nil {
+		t.Fatal("expected error for already closed month")
+	}
+	if !strings.Contains(err.Error(), "ya está cerrado") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestMesService_Cerrar_Success(t *testing.T) {
+	svc, mock := newMesService(t)
+
+	// 1. FindByID del mes a cerrar (abierto).
+	mock.ExpectQuery(regexp.QuoteMeta(queryMesByID)).
+		WithArgs(int64(9), int64(1)).
+		WillReturnRows(mesRow(9, "2026-08", "abierto"))
+
+	// 2. Transacciones del período.
+	cols := []string{"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "categoria", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"}
+	created := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows(cols).
+		AddRow(1, 1, "ingreso", 100000.0, created, 1, "Sueldo", "Sueldo", "transferencia", false, nil, nil, "confirmado", 9, created, created).
+		AddRow(2, 1, "egreso", 30000.0, created, 5, "Alquiler", "Alquiler", "debito", false, nil, nil, "confirmado", 9, created, created)
+	mock.ExpectQuery(regexp.QuoteMeta(queryTransaccionPeriodo)).
+		WithArgs(int64(1), "2026-08-01", "2026-08-31").
+		WillReturnRows(rows)
+
+	// 3. Último mes cerrado: arrastra ahorro acumulado y pasivos.
+	queryUltimo := `SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+		 FROM meses WHERE usuario_id = ? AND estado = 'cerrado'
+		 ORDER BY periodo DESC LIMIT 1`
+	mock.ExpectQuery(regexp.QuoteMeta(queryUltimo)).
+		WithArgs(int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "usuario_id", "periodo", "estado", "ingresos_total", "egresos_total", "superavit", "tasa_ahorro", "ahorro_acumulado", "pasivos_total", "patrimonio", "created_at"}).
+			AddRow(5, 1, "2026-07", "cerrado", 90000, 70000, 20000, 22.2, 10000.0, 5000.0, 5000.0, created))
+
+	// 4. Persistir el mes cerrado (tasa 70, ahorro acumulado 30000, pasivos 5000, patrimonio 25000).
+	tasa := 70.0
+	mock.ExpectExec(regexp.QuoteMeta(queryMesUpdate)).
+		WithArgs("cerrado", 100000.0, 30000.0, 70000.0, &tasa, 30000.0, 5000.0, 25000.0, int64(9), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	// 5. FindOrCreate del próximo período (2026-09): no existe -> insertar.
+	expectFindOrCreateAbierto(mock, 1, "2026-09", 10)
+
+	// 6. SyncFijosPeriodo(1, "2026-09"): el mes ya existe -> FindByPeriodo directo.
+	mock.ExpectQuery(regexp.QuoteMeta(queryMesByPeriodo)).
+		WithArgs(int64(1), "2026-09").
+		WillReturnRows(mesRow(10, "2026-09", "abierto"))
+	// ... un costo fijo activo que se materializa en el período.
+	mock.ExpectQuery(regexp.QuoteMeta(queryCostosFijosActivos)).
+		WithArgs(int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "usuario_id", "categoria_id", "categoria", "descripcion", "monto_estimado", "dia_vencimiento", "activo", "tipo_periodo", "created_at"}).
+			AddRow(3, 1, 6, "Servicios", "Internet", 5000.0, 5, true, "mensual", created))
+	mock.ExpectQuery(regexp.QuoteMeta(queryTransaccionFijoCount)).
+		WithArgs(int64(1), int64(6), "Internet", "2026-09-01", "2026-09-31").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectExec(regexp.QuoteMeta(queryTransaccionFijoInsert)).
+		WithArgs(int64(1), 5000.0, "2026-09-01", int64(6), "Internet").
+		WillReturnResult(sqlmock.NewResult(4, 1))
+
+	// 7. Guardar el próximo mes como abierto (solo actualiza estado).
+	mock.ExpectExec(regexp.QuoteMeta(queryMesUpdate)).
+		WithArgs("abierto", 0.0, 0.0, 0.0, nil, 0.0, 0.0, 0.0, int64(10), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	mes, err := svc.Cerrar(context.Background(), 1, 9)
+	if err != nil {
+		t.Fatalf("Cerrar: %v", err)
+	}
+	if mes.Estado != "cerrado" {
+		t.Errorf("expected cerrado, got %q", mes.Estado)
+	}
+	if mes.AhorroAcumulado != 30000 {
+		t.Errorf("expected ahorro acumulado 30000, got %v", mes.AhorroAcumulado)
+	}
+	if mes.Patrimonio != 25000 {
+		t.Errorf("expected patrimonio 25000, got %v", mes.Patrimonio)
+	}
+}
+
+func TestMesService_Cerrar_SinMesAnterior(t *testing.T) {
+	svc, mock := newMesService(t)
+
+	mock.ExpectQuery(regexp.QuoteMeta(queryMesByID)).
+		WithArgs(int64(9), int64(1)).
+		WillReturnRows(mesRow(9, "2026-08", "abierto"))
+
+	cols := []string{"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "categoria", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"}
+	created := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta(queryTransaccionPeriodo)).
+		WithArgs(int64(1), "2026-08-01", "2026-08-31").
+		WillReturnRows(sqlmock.NewRows(cols).
+			AddRow(1, 1, "ingreso", 100000.0, created, 1, "Sueldo", "Sueldo", "transferencia", false, nil, nil, "confirmado", 9, created, created))
+
+	queryUltimo := `SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+		 FROM meses WHERE usuario_id = ? AND estado = 'cerrado'
+		 ORDER BY periodo DESC LIMIT 1`
+	mock.ExpectQuery(regexp.QuoteMeta(queryUltimo)).
+		WithArgs(int64(1)).
+		WillReturnError(sql.ErrNoRows)
+
+	tasa := 100.0
+	mock.ExpectExec(regexp.QuoteMeta(queryMesUpdate)).
+		WithArgs("cerrado", 100000.0, 0.0, 100000.0, &tasa, 0.0, 0.0, 0.0, int64(9), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	expectFindOrCreateAbierto(mock, 1, "2026-09", 10)
+
+	mock.ExpectQuery(regexp.QuoteMeta(queryMesByPeriodo)).
+		WithArgs(int64(1), "2026-09").
+		WillReturnRows(mesRow(10, "2026-09", "abierto"))
+	mock.ExpectQuery(regexp.QuoteMeta(queryCostosFijosActivos)).
+		WithArgs(int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "usuario_id", "categoria_id", "categoria", "descripcion", "monto_estimado", "dia_vencimiento", "activo", "tipo_periodo", "created_at"}))
+
+	mock.ExpectExec(regexp.QuoteMeta(queryMesUpdate)).
+		WithArgs("abierto", 0.0, 0.0, 0.0, nil, 0.0, 0.0, 0.0, int64(10), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	mes, err := svc.Cerrar(context.Background(), 1, 9)
+	if err != nil {
+		t.Fatalf("Cerrar: %v", err)
+	}
+	if mes.AhorroAcumulado != 0 || mes.PasivosTotal != 0 || mes.Patrimonio != 0 {
+		t.Errorf("expected 0 carry-over without previous month, got %+v", mes)
 	}
 }
