@@ -1,17 +1,31 @@
-// Jenkinsfile — Pipeline de CI para finanzas_personales.
+// Jenkinsfile — Pipeline GitFlow para finanzas_personales.
+//
+// Flujo GitFlow soportado (Multibranch Pipeline + GitHub Branch Source):
+//   feature/*  ──PR──▶  develop  ──release/*──▶  main
+//   hotfix/*   ──PR──▶  main
+//
+// - Las PRs (feature/hotfix) se VALIDAN en Jenkins antes del merge: gate rápido
+//   (vet + build) y gate de cobertura 85%. El estado del check aparece en la PR.
+// - develop y release/* validan y despliegan a staging.
+// - main valida y despliega a producción con aprobación manual (input).
 //
 // Patrones de protección aplicados:
 //   - `when { changeset }`: CI solo corre cuando cambian archivos relevantes
 //     (Go, módulos o migraciones); PRs de solo documentación se saltean.
-//   - `options`: timeout anti-hangs, timestamps, serialización de builds
-//     concurrentes sobre la misma rama y retención de builds (buildDiscarder).
-//   - Gate rápido: `go vet` + `go build` fallan temprano antes de correr tests.
+//   - `options`: timeout anti-hangs, timestamps y retención de builds.
 //   - Gate de cobertura 85% (scripts/coverage.sh): el build FALLA si la
 //     cobertura baja del umbral.
 //   - Credencial `finanzas_database_url` inyecta DATABASE_URL para MySQL.
-//     Si MySQL no está disponible, los tests de integración se saltean y la
-//     cobertura cae a ~46%, por lo que el gate de 85% protege la medición.
-//   - Reportes: JUnit para resultados de tests y coverage.html como artefacto.
+//     Sin MySQL, los tests de integración se saltean y la cobertura cae a ~46%,
+//     por lo que el gate protege la medición.
+//
+// Configuración de Jenkins (una vez):
+//   1. Job tipo "Multibranch Pipeline", fuente GitHub con el repo.
+//   2. "Branch Sources" que incluya ramas (`feature/*`, `develop`, `release/*`,
+//      `hotfix/*`, `main`) y "Discover pull requests".
+//   3. Credential de tipo "Secret text" con id `finanzas_database_url` con el
+//      DSN completo (ej. el de .env.example). Contiene `&`, se inyecta tal cual.
+//   4. En GitHub: "Require status checks" para el check del pipeline en main.
 
 pipeline {
     agent { label 'golang' }
@@ -29,63 +43,66 @@ pipeline {
     }
 
     stages {
-        stage('Relevancia del cambio') {
-            // Corta el pipeline si el PR no toca código Go, módulos o migraciones.
+        stage('Validación (CI)') {
+            // Corresponde al "gate" de gitflow: la PR no se mergea sin pasar.
             when {
+                anyOf(
+                    changeRequest(),                          // PRs: feature/* → develop, hotfix/* → main
+                    branch 'develop',
+                    branch 'main',
+                    branch pattern: 'release/*',
+                    branch pattern: 'hotfix/*'
+                )
                 changeset pattern: ['**/*.go', 'go.mod', 'go.sum', 'migrations/*.sql']
             }
-            steps {
-                echo 'Cambios relevantes detectados: se ejecuta el pipeline completo.'
-            }
-        }
-
-        stage('Gate rápido (vet + build)') {
-            when {
-                changeset pattern: ['**/*.go', 'go.mod', 'go.sum', 'migrations/*.sql']
-            }
-            steps {
-                sh 'go version'
-                sh 'go vet ./...'
-                sh 'go build ./...'
-            }
-        }
-
-        stage('Tests + gate de cobertura') {
-            when {
-                changeset pattern: ['**/*.go', 'go.mod', 'go.sum', 'migrations/*.sql']
-            }
-            steps {
-                // Los tests de integración (cmd/server/integration_test.go) usan
-                // TEST_DATABASE_URL/DATABASE_URL. En Jenkins se inyecta vía credential.
-                withCredentials([string(credentialsId: 'finanzas_database_url', variable: 'DATABASE_URL')]) {
-                    sh 'MIN_COVERAGE=${MIN_COVERAGE} ./scripts/coverage.sh'
+            stages {
+                stage('Gate rápido (vet + build)') {
+                    steps {
+                        sh 'go version'
+                        sh 'go vet ./...'
+                        sh 'go build ./...'
+                    }
+                }
+                stage('Tests + gate de cobertura 85%') {
+                    steps {
+                        // Los tests de integración (cmd/server/integration_test.go)
+                        // usan TEST_DATABASE_URL/DATABASE_URL (ver .env.example).
+                        withCredentials([string(credentialsId: 'finanzas_database_url', variable: 'DATABASE_URL')]) {
+                            sh 'MIN_COVERAGE=${MIN_COVERAGE} ./scripts/coverage.sh'
+                        }
+                    }
                 }
             }
         }
 
-        stage('Reportes') {
-            when {
-                changeset pattern: ['**/*.go', 'go.mod', 'go.sum', 'migrations/*.sql']
-            }
+        stage('Deploy staging') {
+            // gitflow: develop integra features; release/* es la rama de staging
+            // que se promociona a main. TODO: reemplazar con el deploy real
+            // (ej. make docker-build + push a registro de staging).
+            when { anyOf(branch 'develop', branch pattern: 'release/*') }
             steps {
-                sh '''
-                    set +e
-                    go test ./... -coverpkg=./... -coverprofile=coverage.out 2>&1 | tee test-output.txt
-                    rc=${PIPESTATUS[0]}
-                    set -e
-                    exit $rc
-                '''
-                sh 'go install github.com/jstemmer/go-junit-report/v2@latest'
-                sh 'cat test-output.txt | go-junit-report > junit.xml'
-                junit allowEmptyResults: true, testResults: 'junit.xml'
+                echo "Deploy a staging desde ${env.BRANCH_NAME}"
+            }
+        }
+
+        stage('Deploy producción') {
+            // gitflow: main es producción. Aprobación manual antes de desplegar.
+            // TODO: reemplazar con el deploy real a producción.
+            when { branch 'main' }
+            steps {
+                input message: '¿Aprobar deploy a producción?', ok: 'Deploy'
+                echo "Deploy a producción desde main"
             }
         }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: 'coverage.html, coverage.out, coverage.filtered.out, test-output.txt', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'coverage.html, coverage.out, coverage.filtered.out', allowEmptyArchive: true
             cleanWs()
+        }
+        failure {
+            echo "Pipeline falló en ${env.BRANCH_NAME}${env.CHANGE_ID ? ' (PR #' + env.CHANGE_ID + ')' : ''}"
         }
     }
 }
