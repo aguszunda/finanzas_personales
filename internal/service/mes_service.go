@@ -13,10 +13,11 @@ type MesService struct {
 	mesRepo         *repository.MesRepo
 	transaccionRepo *repository.TransaccionRepo
 	costoFijoRepo   *repository.CostoFijoRepo
+	deudaRepo       *repository.DeudaRepo
 }
 
-func NewMesService(mr *repository.MesRepo, tr *repository.TransaccionRepo, cfr *repository.CostoFijoRepo) *MesService {
-	return &MesService{mesRepo: mr, transaccionRepo: tr, costoFijoRepo: cfr}
+func NewMesService(mr *repository.MesRepo, tr *repository.TransaccionRepo, cfr *repository.CostoFijoRepo, dr *repository.DeudaRepo) *MesService {
+	return &MesService{mesRepo: mr, transaccionRepo: tr, costoFijoRepo: cfr, deudaRepo: dr}
 }
 
 func (s *MesService) List(ctx context.Context, usuarioID int64) ([]model.Mes, error) {
@@ -53,14 +54,9 @@ func (s *MesService) Cerrar(ctx context.Context, usuarioID, mesID int64) (*model
 		mes.TasaAhorro = &tasa
 	}
 	mes.Estado = "cerrado"
-	ultimo, err := s.mesRepo.GetUltimoCerrado(ctx, usuarioID)
-	if err == nil {
-		mes.AhorroAcumulado = ultimo.AhorroAcumulado + ultimo.Superavit
-		mes.PasivosTotal = ultimo.PasivosTotal
-	} else {
-		mes.AhorroAcumulado = 0
+	if err := s.calcularAcumulados(ctx, usuarioID, mes); err != nil {
+		return nil, err
 	}
-	mes.Patrimonio = mes.AhorroAcumulado - mes.PasivosTotal
 	if err := s.mesRepo.Update(ctx, mes); err != nil {
 		return nil, err
 	}
@@ -85,6 +81,9 @@ func (s *MesService) Recalcular(ctx context.Context, usuarioID, mesID int64) (*m
 	if err != nil {
 		return nil, err
 	}
+	if mes.Estado == "cerrado" {
+		return nil, model.ErrMesCerrado
+	}
 	transacciones, err := s.transaccionRepo.FindByPeriodo(ctx, usuarioID, mes.Periodo)
 	if err != nil {
 		return nil, err
@@ -97,10 +96,31 @@ func (s *MesService) Recalcular(ctx context.Context, usuarioID, mesID int64) (*m
 		tasa := (mes.Superavit / totalIngresos) * 100
 		mes.TasaAhorro = &tasa
 	}
+	if err := s.calcularAcumulados(ctx, usuarioID, mes); err != nil {
+		return nil, err
+	}
 	if err := s.mesRepo.Update(ctx, mes); err != nil {
 		return nil, err
 	}
 	return mes, nil
+}
+
+// calcularAcumulados deriva ahorro acumulado, pasivos y patrimonio a partir de
+// fuentes de datos en vivo: el superávit histórico de los meses cerrados
+// anteriores más el del período actual, y la suma de saldos de deudas.
+func (s *MesService) calcularAcumulados(ctx context.Context, usuarioID int64, mes *model.Mes) error {
+	anterior, err := s.mesRepo.SumSuperavitAnterior(ctx, usuarioID, mes.Periodo)
+	if err != nil {
+		return err
+	}
+	mes.AhorroAcumulado = anterior + mes.Superavit
+	pasivos, err := s.deudaRepo.SumSaldoPendiente(ctx, usuarioID)
+	if err != nil {
+		return err
+	}
+	mes.PasivosTotal = pasivos
+	mes.Patrimonio = mes.AhorroAcumulado - mes.PasivosTotal
+	return nil
 }
 
 func nextPeriodo(current string) (string, error) {
@@ -172,6 +192,9 @@ func (s *MesService) Balance(ctx context.Context, usuarioID, mesID int64) (*mode
 		mes.TasaAhorro = &tasa
 	} else {
 		mes.TasaAhorro = nil
+	}
+	if err := s.calcularAcumulados(ctx, usuarioID, mes); err != nil {
+		return nil, nil, err
 	}
 	return mes, transacciones, nil
 }

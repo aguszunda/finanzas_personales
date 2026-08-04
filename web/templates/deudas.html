@@ -1,0 +1,134 @@
+{{define "content"}}
+{{if .error}}
+<div class="alert alert-error">{{.error}}</div>
+{{end}}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center">
+    <h2>💳 Deudas</h2>
+    <button class="btn btn-primary" onclick="openNewForm()">+ Nueva</button>
+</div>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Tipo</th>
+                <th>Entidad</th>
+                <th>Descripción</th>
+                <th>Monto Total</th>
+                <th>Saldo Pendiente</th>
+                <th>Próx. Venc.</th>
+                <th class="no-print">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .deudas}}
+            <tr>
+                <td>{{if eq .Tipo "tarjeta_credito"}}💳 Tarjeta{{else if eq .Tipo "prestamo"}}🏦 Préstamo{{else if eq .Tipo "hipoteca"}}🏠 Hipoteca{{else if eq .Tipo "personal"}}👤 Personal{{else}}📄 Otro{{end}}</td>
+                <td>{{.Entidad}}</td>
+                <td>{{.Descripcion}}</td>
+                <td>$ {{printf "%.2f" .MontoTotal}}</td>
+                <td style="font-weight:600;color:var(--danger)">$ {{printf "%.2f" .SaldoPendiente}}</td>
+                <td>{{.ProximoVencimiento}}</td>
+                <td class="no-print">
+                    <button class="btn btn-outline btn-sm" onclick="editDeuda({{.ID}})">✏️</button>
+                    <button class="btn btn-danger btn-sm" hx-delete="/api/deudas/{{.ID}}" hx-confirm="¿Eliminar esta deuda?" hx-swap="none">🗑️</button>
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--text-secondary)">No hay deudas registradas</td></tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+
+<div id="form-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal">
+        <h2 id="form-modal-title">Nueva Deuda</h2>
+        <form hx-post="/api/deudas" hx-swap="none" method="post" action="/api/deudas">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <select name="tipo" required>
+                        <option value="tarjeta_credito">💳 Tarjeta de Crédito</option>
+                        <option value="prestamo">🏦 Préstamo</option>
+                        <option value="hipoteca">🏠 Hipoteca</option>
+                        <option value="personal">👤 Personal</option>
+                        <option value="otro">📄 Otro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Entidad</label>
+                    <input type="text" name="entidad" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Descripción</label>
+                <input type="text" name="descripcion">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Monto Total</label>
+                    <input type="number" name="monto_total" step="0.01" min="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Saldo Pendiente</label>
+                    <input type="number" name="saldo_pendiente" step="0.01" min="0" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Tasa de Interés (%)</label>
+                    <input type="number" name="tasa_interes" step="0.01" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Próximo Vencimiento</label>
+                    <input type="date" name="proximo_vencimiento">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeDeudaModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function resetDeudaForm() {
+    var form = document.querySelector('#form-modal form');
+    form.reset();
+    form.setAttribute('hx-post', '/api/deudas');
+    form.removeAttribute('hx-put');
+    document.getElementById('form-modal-title').textContent = 'Nueva Deuda';
+}
+
+function openNewForm() {
+    resetDeudaForm();
+    document.getElementById('form-modal').style.display='flex';
+}
+
+function closeDeudaModal() {
+    document.getElementById('form-modal').style.display='none';
+}
+
+function editDeuda(id) {
+    fetch('/api/deudas/'+id)
+        .then(r=>r.json())
+        .then(d=>{
+            var form = document.querySelector('#form-modal form');
+            form.reset();
+            form.removeAttribute('hx-post');
+            form.setAttribute('hx-put', '/api/deudas/'+id);
+            document.getElementById('form-modal-title').textContent = 'Editar Deuda';
+            form.querySelector('[name="tipo"]').value = d.tipo;
+            form.querySelector('[name="entidad"]').value = d.entidad;
+            form.querySelector('[name="descripcion"]').value = d.descripcion;
+            form.querySelector('[name="monto_total"]').value = d.monto_total;
+            form.querySelector('[name="saldo_pendiente"]').value = d.saldo_pendiente;
+            form.querySelector('[name="tasa_interes"]').value = d.tasa_interes;
+            form.querySelector('[name="proximo_vencimiento"]').value = d.proximo_vencimiento;
+            document.getElementById('form-modal').style.display='flex';
+        });
+}
+</script>
+{{end}}

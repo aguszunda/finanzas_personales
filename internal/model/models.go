@@ -88,16 +88,16 @@ type Presupuesto struct {
 }
 
 type Deuda struct {
-	ID              int64     `json:"id"`
-	UsuarioID       int64     `json:"usuario_id"`
-	Tipo            string    `json:"tipo"`
-	Entidad         string    `json:"entidad"`
-	MontoTotal      float64   `json:"monto_total"`
-	CuotasRestantes int       `json:"cuotas_restantes"`
-	TasaInteres     float64   `json:"tasa_interes"`
-	FechaCierre     string    `json:"fecha_cierre"`
-	FechaPago       string    `json:"fecha_pago"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID                 int64     `json:"id"`
+	UsuarioID          int64     `json:"usuario_id"`
+	Tipo               string    `json:"tipo"`
+	Entidad            string    `json:"entidad"`
+	Descripcion        string    `json:"descripcion"`
+	MontoTotal         float64   `json:"monto_total"`
+	SaldoPendiente     float64   `json:"saldo_pendiente"`
+	TasaInteres        float64   `json:"tasa_interes"`
+	ProximoVencimiento string    `json:"proximo_vencimiento"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 type Inversion struct {

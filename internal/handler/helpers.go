@@ -89,6 +89,7 @@ func setFormField(field reflect.Value, raw string) {
 		field.Set(p)
 	}
 }
+
 var tmpl *TemplateManager
 
 func SetTemplateManager(t *TemplateManager) {

@@ -101,20 +101,20 @@ func (r *MesRepo) Cerrar(ctx context.Context, id, usuarioID int64) error {
 	return nil
 }
 
-func (r *MesRepo) GetUltimoCerrado(ctx context.Context, usuarioID int64) (*model.Mes, error) {
-	m := &model.Mes{}
+// SumSuperavitAnterior devuelve el superávit acumulado de todos los meses
+// cerrados estrictamente anteriores al período indicado. Es la base del
+// "ahorro acumulado": se le suma el superávit del período actual en memoria.
+func (r *MesRepo) SumSuperavitAnterior(ctx context.Context, usuarioID int64, periodo string) (float64, error) {
+	var sum float64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
-		 FROM meses WHERE usuario_id = ? AND estado = 'cerrado'
-		 ORDER BY periodo DESC LIMIT 1`, usuarioID,
-	).Scan(&m.ID, &m.UsuarioID, &m.Periodo, &m.Estado, &m.IngresosTotal, &m.EgresosTotal, &m.Superavit, &m.TasaAhorro, &m.AhorroAcumulado, &m.PasivosTotal, &m.Patrimonio, &m.CreatedAt)
+		`SELECT COALESCE(SUM(superavit), 0) FROM meses
+		 WHERE usuario_id = ? AND estado = 'cerrado' AND periodo < ?`,
+		usuarioID, periodo,
+	).Scan(&sum)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrNotFound
-		}
-		return nil, err
+		return 0, err
 	}
-	return m, nil
+	return sum, nil
 }
 
 func scanMeses(rows *sql.Rows) ([]model.Mes, error) {
