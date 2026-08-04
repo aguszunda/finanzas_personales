@@ -20,7 +20,7 @@ curl -s -X POST http://localhost:8080/api/auth/register \
 **Respuesta 201:**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "token": "<TU_TOKEN_JWT>",
   "usuario": {
     "id": 1, "nombre": "Agustin", "email": "agustin@example.com",
     "moneda_default": "ARS", "created_at": "2026-07-30T12:00:00Z"

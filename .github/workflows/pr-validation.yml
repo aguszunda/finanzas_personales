@@ -1,0 +1,146 @@
+# Validación de Pull Requests
+#
+# Gate de calidad y seguridad que toda PR debe pasar antes de mergear:
+#   1. Formato (gofmt) y dependencias consistentes (go mod tidy).
+#   2. Build y go vet.
+#   3. gosec: análisis estático de seguridad del código.
+#   4. govulncheck: vulnerabilidades en dependencias y toolchain.
+#   5. gitleaks: secretos commiteados por accidente.
+#   6. Tests unitarios + integración (MySQL real) y cobertura mínima del 85%.
+#
+# Notas:
+#   - Los tools de seguridad se instalan desde binarios fuentes versionados
+#     (`go install @versión`) en lugar de ejecutar acciones de terceros, para
+#     minimizar la superficie de ataque de la cadena de suministro del CI.
+#   - No se usan secretos de GitHub; permisos mínimos por job.
+
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Calidad (fmt, deps, build, vet, gosec)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Formato (gofmt)
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Archivos sin gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Dependencias consistentes (go mod tidy)
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Gosec (análisis estático de seguridad)
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0
+          gosec -fmt=text ./...
+
+  security:
+    name: Seguridad (govulncheck, gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Govulncheck (vulnerabilidades en dependencias y toolchain)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          govulncheck ./...
+
+      - name: Gitleaks (secretos en el código)
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          gitleaks detect --source . --no-banner --redact
+
+  tests:
+    name: Tests + cobertura >= 85 %
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: finanzas
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      TEST_DATABASE_URL: "root:@tcp(127.0.0.1:3306)/finanzas?parseTime=true&multiStatements=true&charset=utf8mb4&loc=Local"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Tests unitarios e integración
+        run: make test
+
+      - name: Cobertura (mínimo 85 %)
+        run: MIN_COVERAGE=85 ./scripts/coverage.sh
+
+      - name: Subir reporte de cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.html
+            coverage.filtered.out
+          if-no-files-found: error

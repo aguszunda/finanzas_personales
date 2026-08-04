@@ -50,7 +50,6 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
 	r.Use(middleware.Logging)
 	r.Use(chimw.Timeout(30 * time.Second))
@@ -64,7 +63,7 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
 	r.Get("/login", pagesH.LoginPage)

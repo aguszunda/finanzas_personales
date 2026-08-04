@@ -1,0 +1,20 @@
+# Configuración de gitleaks (escaneo de secretos en CI).
+#
+# Se extienden las reglas por defecto y solo se agrega una excepción: un JWT de
+# ejemplo truncado que aparece en la documentación de la API (docs/API.md). No
+# es un secreto real, pero dispara la regla genérica de API keys, por eso se
+# permite explícitamente solo para ese archivo de documentación.
+
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "JWT de ejemplo truncado en la documentación de la API (no es un secreto real)"
+regexes = [
+    "eyJhbGciOiJIUzI1NiIs",
+]
+paths = [
+    "docs/API.md",
+]
