@@ -17,12 +17,13 @@ type PagesHandler struct {
 	transSvc     *service.TransaccionService
 	cfSvc        *service.CostoFijoService
 	mesSvc       *service.MesService
+	deudaSvc     *service.DeudaService
 	catRepo      *repository.CategoriaRepo
 }
 
-func NewPagesHandler(ds *service.DashboardService, ts *service.TransaccionService, cfs *service.CostoFijoService, ms *service.MesService, cr *repository.CategoriaRepo) *PagesHandler {
+func NewPagesHandler(ds *service.DashboardService, ts *service.TransaccionService, cfs *service.CostoFijoService, ms *service.MesService, ds2 *service.DeudaService, cr *repository.CategoriaRepo) *PagesHandler {
 	return &PagesHandler{
-		dashboardSvc: ds, transSvc: ts, cfSvc: cfs, mesSvc: ms, catRepo: cr,
+		dashboardSvc: ds, transSvc: ts, cfSvc: cfs, mesSvc: ms, deudaSvc: ds2, catRepo: cr,
 	}
 }
 
@@ -104,8 +105,24 @@ func (h *PagesHandler) BalancePage(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "balance", map[string]interface{}{"error": err.Error()})
 		return
 	}
+	deudas, err := h.deudaSvc.List(r.Context(), uid)
+	if err != nil {
+		renderTemplate(w, "balance", map[string]interface{}{"error": err.Error()})
+		return
+	}
 	renderTemplate(w, "balance", map[string]interface{}{
 		"mes":           mes,
 		"transacciones": transacciones,
+		"deudas":        deudas,
 	})
+}
+
+func (h *PagesHandler) DeudasPage(w http.ResponseWriter, r *http.Request) {
+	uid := middleware.UserIDFromContext(r.Context())
+	deudas, err := h.deudaSvc.List(r.Context(), uid)
+	if err != nil {
+		renderTemplate(w, "deudas", map[string]interface{}{"error": err.Error()})
+		return
+	}
+	renderTemplate(w, "deudas", map[string]interface{}{"deudas": deudas})
 }

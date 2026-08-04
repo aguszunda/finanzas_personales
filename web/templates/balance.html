@@ -74,6 +74,23 @@
             <span>Pasivos</span>
             <span style="font-weight:600;color:var(--danger)">$ {{printf "%.2f" .PasivosTotal}}</span>
         </div>
+        {{if $.deudas}}
+        <div style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-secondary)">
+            {{range $.deudas}}
+            <div style="display:flex;justify-content:space-between;margin-top:0.15rem">
+                <span>{{.Entidad}}{{if .Descripcion}} · {{.Descripcion}}{{end}}</span>
+                <span>$ {{printf "%.2f" .SaldoPendiente}}</span>
+            </div>
+            {{end}}
+        </div>
+        <div style="text-align:right;margin-top:0.4rem">
+            <a href="/api/deudas/page" style="font-size:0.8rem;color:var(--primary)">Gestionar deudas →</a>
+        </div>
+        {{else}}
+        <div style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-secondary)">
+            Sin deudas registradas
+        </div>
+        {{end}}
         <div style="display:flex;justify-content:space-between;margin-top:0.5rem;font-size:1.1rem;font-weight:700;border-top:1px solid var(--border);padding-top:0.5rem">
             <span>PATRIMONIO NETO</span>
             <span>$ {{printf "%.2f" .Patrimonio}}</span>

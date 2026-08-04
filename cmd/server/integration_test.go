@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -221,10 +222,13 @@ func TestProtectedRoutes_RequireToken(t *testing.T) {
 		"/api/transacciones",
 		"/api/costos-fijos",
 		"/api/meses",
+		"/api/deudas",
 		"/api/dashboard",
 		"/api/categorias",
 		"/api/dashboard/page",
 		"/api/transacciones/page",
+		"/api/costos-fijos/page",
+		"/api/deudas/page",
 		"/api/balance/page",
 	}
 	for _, p := range paths {
@@ -346,6 +350,170 @@ func TestCostosFijos_CRUD(t *testing.T) {
 	}
 }
 
+func TestDeudas_CRUD(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "deuda@test.com")
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":500000,"saldo_pendiente":300000,"tasa_interes":25,"proximo_vencimiento":"2026-09-10"}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var deuda map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &deuda)
+	id := int64(deuda["id"].(float64))
+
+	rec = doReq(t, env.router, http.MethodGet, "/api/deudas", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: expected 200, got %d", rec.Code)
+	}
+	var list []map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &list)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 deuda, got %d", len(list))
+	}
+
+	rec = doReq(t, env.router, http.MethodGet, fmt.Sprintf("/api/deudas/%d", id), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get: expected 200, got %d", rec.Code)
+	}
+
+	// invalid create: saldo pendiente > monto total.
+	rec = doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"prestamo","entidad":"Banco","monto_total":100,"saldo_pendiente":200}`,
+		"application/json", false)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid create: expected 400, got %d", rec.Code)
+	}
+
+	rec = doReq(t, env.router, http.MethodPut, fmt.Sprintf("/api/deudas/%d", id), token,
+		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":500000,"saldo_pendiente":250000,"tasa_interes":25}`,
+		"application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	json.Unmarshal(rec.Body.Bytes(), &deuda)
+	if deuda["saldo_pendiente"].(float64) != 250000 {
+		t.Errorf("update not applied: %v", deuda["saldo_pendiente"])
+	}
+
+	rec = doReq(t, env.router, http.MethodDelete, fmt.Sprintf("/api/deudas/%d", id), token, "", "", false)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete: expected 204, got %d", rec.Code)
+	}
+}
+
+func TestDeudas_CrossUserIsolation(t *testing.T) {
+	env := newTestEnv(t)
+	tokenA, _ := registerJSON(t, env, "deudaA@test.com")
+	tokenB, _ := registerJSON(t, env, "deudaB@test.com")
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", tokenA,
+		`{"tipo":"prestamo","entidad":"Banco","monto_total":100000,"saldo_pendiente":50000}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d", rec.Code)
+	}
+	var deuda map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &deuda)
+	id := int64(deuda["id"].(float64))
+
+	rec = doReq(t, env.router, http.MethodGet, fmt.Sprintf("/api/deudas/%d", id), tokenB, "", "", false)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-user get: expected 404, got %d", rec.Code)
+	}
+	rec = doReq(t, env.router, http.MethodDelete, fmt.Sprintf("/api/deudas/%d", id), tokenB, "", "", false)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-user delete: expected 404, got %d", rec.Code)
+	}
+}
+
+func TestDeudas_FormCreate_HTMXAndPlainRedirects(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "deudaform@test.com")
+
+	// HTMX: la página debe recargarse vía HX-Redirect.
+	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		"tipo=tarjeta_credito&entidad=Visa&descripcion=Tarjeta&monto_total=80000&saldo_pendiente=25000&tasa_interes=40",
+		"application/x-www-form-urlencoded", true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("htmx create: expected 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("HX-Redirect") != "/api/deudas/page" {
+		t.Errorf("unexpected HX-Redirect: %q", rec.Header().Get("HX-Redirect"))
+	}
+
+	// Form plano (sin HTMX): 303 al listado.
+	rec = doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		"tipo=prestamo&entidad=Banco&monto_total=100000&saldo_pendiente=50000",
+		"application/x-www-form-urlencoded", false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("plain form create: expected 303, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("Location") != "/api/deudas/page" {
+		t.Errorf("unexpected Location: %q", rec.Header().Get("Location"))
+	}
+}
+
+func TestDeudas_PageConDatos(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "deudapage@test.com")
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":500000,"saldo_pendiente":300000,"tasa_interes":25,"proximo_vencimiento":"2026-09-10"}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create deuda: expected 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	rec = doReq(t, env.router, http.MethodGet, "/api/deudas/page", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("deudas page: expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Banco Galicia") || !strings.Contains(body, "$ 300000.00") {
+		t.Errorf("deuda no visible en la página: %s", body)
+	}
+	if strings.Contains(body, "No hay deudas registradas") {
+		t.Error("deudas page should not show empty state with a deuda present")
+	}
+}
+
+func TestBalance_AhorroAcumuladoYPasivos(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "bal@test.com")
+	dia := time.Now().Format("2006-01-02")
+
+	createTransaction(t, env, token, "ingreso", 100000, dia)
+	createTransaction(t, env, token, "egreso", 40000, dia)
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"tarjeta_credito","entidad":"Visa","monto_total":80000,"saldo_pendiente":25000}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create deuda: expected 201, got %d", rec.Code)
+	}
+
+	rec = doReq(t, env.router, http.MethodGet, "/api/balance/page", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("balance page: expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	// Ahorro acumulado = superávit histórico (0) + superávit actual (60000).
+	if !strings.Contains(body, "Ahorro Acumulado") || !strings.Contains(body, "$ 60000.00") {
+		t.Errorf("ahorro acumulado no visible en balance: %s", body)
+	}
+	// Pasivos = suma de saldos de deudas (25000), visibles con su desglose.
+	if !strings.Contains(body, "Pasivos") || !strings.Contains(body, "$ 25000.00") || !strings.Contains(body, "Visa") {
+		t.Errorf("pasivos no visibles en balance: %s", body)
+	}
+	// Patrimonio = 60000 - 25000 = 35000.
+	if !strings.Contains(body, "$ 35000.00") {
+		t.Errorf("patrimonio neto incorrecto en balance: %s", body)
+	}
+}
+
 func TestMeses_CierreYCostoFijoPrecargado(t *testing.T) {
 	env := newTestEnv(t)
 	token, _ := registerJSON(t, env, "mes@test.com")
@@ -408,6 +576,62 @@ func TestMeses_CierreYCostoFijoPrecargado(t *testing.T) {
 	}
 }
 
+func TestMeses_CierreConDeudasYRecalcularCerrado(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "cierred@test.com")
+	periodoActual := time.Now().Format("2006-01")
+	dia := time.Now().Format("2006-01-02")
+
+	createTransaction(t, env, token, "ingreso", 100000, dia)
+	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"prestamo","entidad":"Banco","monto_total":50000,"saldo_pendiente":30000}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create deuda: expected 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	rec = doReq(t, env.router, http.MethodGet, "/api/meses/current", token, "", "", false)
+	var mes map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &mes)
+	mesID := int64(mes["id"].(float64))
+
+	// Cerrar con deudas: pasivos quedan congelados en el mes cerrado.
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/meses/%d/cerrar", mesID), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cerrar: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	json.Unmarshal(rec.Body.Bytes(), &mes)
+	if mes["estado"] != "cerrado" {
+		t.Errorf("expected cerrado, got %v", mes["estado"])
+	}
+	if mes["superavit"].(float64) != 100000 || mes["ahorro_acumulado"].(float64) != 100000 {
+		t.Errorf("unexpected superavit/ahorro: %v / %v", mes["superavit"], mes["ahorro_acumulado"])
+	}
+	if mes["pasivos_total"].(float64) != 30000 || mes["patrimonio"].(float64) != 70000 {
+		t.Errorf("unexpected pasivos/patrimonio: %v / %v", mes["pasivos_total"], mes["patrimonio"])
+	}
+
+	// Un mes cerrado no se puede recalcular (regresión del nuevo flujo).
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/meses/%d/recalcular", mesID), token, "", "", false)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("recalcular closed month: expected 409, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// Los acumulados persisten inmutables en el mes cerrado.
+	rec = doReq(t, env.router, http.MethodGet, fmt.Sprintf("/api/meses/%d", mesID), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get closed month: expected 200, got %d", rec.Code)
+	}
+	json.Unmarshal(rec.Body.Bytes(), &mes)
+	if mes["ahorro_acumulado"].(float64) != 100000 || mes["pasivos_total"].(float64) != 30000 {
+		t.Errorf("closed month persisted wrong acumulados: ahorro=%v pasivos=%v", mes["ahorro_acumulado"], mes["pasivos_total"])
+	}
+
+	if periodoActual != time.Now().Format("2006-01") {
+		t.Fatal("test crossed month boundary")
+	}
+}
+
 func TestDashboard_Totals(t *testing.T) {
 	env := newTestEnv(t)
 	token, _ := registerJSON(t, env, "dash@test.com")
@@ -457,8 +681,9 @@ func TestPages_Render(t *testing.T) {
 		{"/api/dashboard/page", []string{"Ingresos del Mes", "Egresos del Mes", "Tasa de Ahorro"}},
 		{"/api/transacciones/page", []string{"Transacciones", "Todos", `value="` + periodoActual + `"`}},
 		{"/api/costos-fijos/page", []string{"Costos Fijos", "Internet"}},
-		{"/api/balance/page", []string{"Balance", "RESULTADO NETO", "$ 50000.00", "$ 15000.00", "$ 35000.00"}},
+		{"/api/balance/page", []string{"Balance", "RESULTADO NETO", "$ 50000.00", "$ 15000.00", "$ 35000.00", "Ahorro Acumulado", "PATRIMONIO NETO"}},
 		{"/api/meses/page", []string{"Meses", periodoActual}},
+		{"/api/deudas/page", []string{"Deudas", "No hay deudas registradas"}},
 	}
 	for _, tt := range tests {
 		rec := doReq(t, env.router, http.MethodGet, tt.path, token, "", "", false)
@@ -701,6 +926,49 @@ func TestBalancePage_WithClosedMonthAndError(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "alert-error") {
 		t.Error("expected error alert on balance page for missing month")
+	}
+}
+
+func TestMigrations_UpgradeDesdeV1(t *testing.T) {
+	admin, cfg, _ := adminDB(t)
+	name := fmt.Sprintf("finanzas_mig_%d", time.Now().UnixNano())
+	if _, err := admin.Exec("CREATE DATABASE " + name + " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"); err != nil {
+		t.Fatalf("create test database: %v", err)
+	}
+	cfg.DBName = name
+	db, err := sql.Open("mysql", cfg.FormatDSN())
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	t.Cleanup(func() {
+		db.Close()
+		_, _ = admin.Exec("DROP DATABASE IF EXISTS " + name)
+		admin.Close()
+	})
+
+	// Simula una base existente en v1: esquema 001 aplicado y versión registrada.
+	if _, err := db.ExecContext(context.Background(), migration001); err != nil {
+		t.Fatalf("apply migration 001: %v", err)
+	}
+	if _, err := db.Exec("INSERT INTO schema_migrations (version, dirty) VALUES (1, FALSE)"); err != nil {
+		t.Fatalf("record version 1: %v", err)
+	}
+
+	runMigrations(db)
+
+	var tabla int
+	if err := db.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'deudas'", name).Scan(&tabla); err != nil {
+		t.Fatalf("query deudas table: %v", err)
+	}
+	if tabla != 1 {
+		t.Errorf("expected deudas table after upgrade from v1, found %d", tabla)
+	}
+	var version int64
+	if err := db.QueryRow("SELECT MAX(version) FROM schema_migrations").Scan(&version); err != nil {
+		t.Fatalf("query version: %v", err)
+	}
+	if version != 2 {
+		t.Errorf("expected schema version 2 after upgrade, got %d", version)
 	}
 }
 

@@ -29,20 +29,23 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 	transaccionRepo := repository.NewTransaccionRepo(db)
 	costoFijoRepo := repository.NewCostoFijoRepo(db)
 	mesRepo := repository.NewMesRepo(db)
+	deudaRepo := repository.NewDeudaRepo(db)
 
 	authSvc := service.NewAuthService(usuarioRepo, []byte(cfg.JWTSecret), cfg.JWTExpiration)
 	transSvc := service.NewTransaccionService(transaccionRepo, mesRepo)
 	cfSvc := service.NewCostoFijoService(costoFijoRepo, mesRepo)
-	mesSvc := service.NewMesService(mesRepo, transaccionRepo, costoFijoRepo)
+	mesSvc := service.NewMesService(mesRepo, transaccionRepo, costoFijoRepo, deudaRepo)
+	deudaSvc := service.NewDeudaService(deudaRepo)
 	dashSvc := service.NewDashboardService(mesRepo, transaccionRepo, categoriaRepo)
 
 	authH := handler.NewAuthHandler(authSvc)
 	transH := handler.NewTransaccionHandler(transSvc)
 	cfH := handler.NewCostoFijoHandler(cfSvc)
 	mesH := handler.NewMesHandler(mesSvc)
+	deudaH := handler.NewDeudaHandler(deudaSvc)
 	dashH := handler.NewDashboardHandler(dashSvc)
 	catH := handler.NewCategoriaHandler(categoriaRepo)
-	pagesH := handler.NewPagesHandler(dashSvc, transSvc, cfSvc, mesSvc, categoriaRepo)
+	pagesH := handler.NewPagesHandler(dashSvc, transSvc, cfSvc, mesSvc, deudaSvc, categoriaRepo)
 
 	r := chi.NewRouter()
 
@@ -106,6 +109,14 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 				r.Post("/{id}/recalcular", mesH.Recalcular)
 			})
 
+			r.Route("/deudas", func(r chi.Router) {
+				r.Get("/", deudaH.List)
+				r.Post("/", deudaH.Create)
+				r.Get("/{id}", deudaH.GetByID)
+				r.Put("/{id}", deudaH.Update)
+				r.Delete("/{id}", deudaH.Delete)
+			})
+
 			r.Get("/dashboard", dashH.GetDashboard)
 			r.Get("/categorias", catH.List)
 
@@ -115,6 +126,7 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 			r.Get("/balance/page", pagesH.BalancePage)
 			r.Get("/balance/{id}/page", pagesH.BalancePage)
 			r.Get("/meses/page", pagesH.MesesPage)
+			r.Get("/deudas/page", pagesH.DeudasPage)
 		})
 	})
 

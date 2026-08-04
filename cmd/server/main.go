@@ -77,14 +77,44 @@ func main() {
 
 func runMigrations(db *sql.DB) {
 	slog.Info("running database migrations...")
+	version := schemaVersion(db)
+	if version < 1 {
+		slog.Info("running migration 001_init...")
+		if _, err := db.ExecContext(context.Background(), migration001); err != nil {
+			slog.Error("migration 001_init failed", "error", err)
+			os.Exit(1)
+		}
+		recordSchemaVersion(db, 1)
+		slog.Info("migration 001_init completed")
+	}
+	if version < 2 {
+		slog.Info("running migration 002_deudas...")
+		if _, err := db.ExecContext(context.Background(), migration002); err != nil {
+			slog.Error("migration 002_deudas failed", "error", err)
+			os.Exit(1)
+		}
+		recordSchemaVersion(db, 2)
+		slog.Info("migration 002_deudas completed")
+	}
+}
+
+func schemaVersion(db *sql.DB) int64 {
 	var version int64
 	err := db.QueryRowContext(context.Background(), "SELECT COALESCE(MAX(version), 0) FROM schema_migrations").Scan(&version)
 	if err != nil {
 		slog.Warn("cannot check migration version, running full setup", "error", err)
+		return 0
 	}
-	if version < 1 {
-		slog.Info("running migration 001_init...")
-		migration := `
+	return version
+}
+
+func recordSchemaVersion(db *sql.DB, version int64) {
+	if _, err := db.ExecContext(context.Background(), "INSERT IGNORE INTO schema_migrations (version, dirty) VALUES (?, FALSE)", version); err != nil {
+		slog.Warn("cannot record migration version", "error", err)
+	}
+}
+
+const migration001 = `
 		CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT PRIMARY KEY, dirty BOOLEAN NOT NULL);
 		-- CreateSchema
 		CREATE TABLE IF NOT EXISTS usuarios (
@@ -174,13 +204,21 @@ func runMigrations(db *sql.DB) {
 			('Imprevistos', 'egreso', '⚠️', FALSE)
 		;
 		`
-		if _, err := db.ExecContext(context.Background(), migration); err != nil {
-			slog.Error("migration 001_init failed", "error", err)
-			os.Exit(1)
-		}
-		if _, err := db.ExecContext(context.Background(), "INSERT IGNORE INTO schema_migrations (version, dirty) VALUES (1, FALSE)"); err != nil {
-			slog.Warn("cannot record migration version", "error", err)
-		}
-		slog.Info("migration 001_init completed")
-	}
-}
+
+const migration002 = `
+		CREATE TABLE IF NOT EXISTS deudas (
+			id BIGINT AUTO_INCREMENT PRIMARY KEY,
+			usuario_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+			tipo VARCHAR(50) NOT NULL DEFAULT 'otro',
+			entidad VARCHAR(255) NOT NULL,
+			descripcion TEXT,
+			monto_total DECIMAL(15,2) NOT NULL,
+			saldo_pendiente DECIMAL(15,2) NOT NULL,
+			tasa_interes DECIMAL(6,2) DEFAULT 0,
+			proximo_vencimiento DATE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE INDEX idx_deudas_usuario ON deudas(usuario_id);
+		`
