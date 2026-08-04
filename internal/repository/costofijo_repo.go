@@ -111,13 +111,33 @@ func (r *CostoFijoRepo) Delete(ctx context.Context, id, usuarioID int64) error {
 	return nil
 }
 
+// PrecargarEnPeriodo materializa un costo fijo activo como transacción
+// "pendiente" en el período indicado. Es idempotente: si ya existe una
+// transacción pendiente del mismo costo en ese período, no inserta duplicados.
+func (r *CostoFijoRepo) PrecargarEnPeriodo(ctx context.Context, usuarioID int64, periodo string, f model.CostoFijo) error {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM transacciones
+		 WHERE usuario_id = ? AND es_fijo = TRUE AND estado = 'pendiente'
+		   AND categoria_id = ? AND descripcion = ?
+		   AND fecha >= ? AND fecha <= ?`,
+		usuarioID, f.CategoriaID, f.Descripcion, periodo+"-01", periodo+"-31").Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	_, err = r.db.ExecContext(ctx,
+		`INSERT INTO transacciones (usuario_id, tipo, monto, fecha, categoria_id, descripcion, medio_pago, es_fijo, estado)
+		 VALUES (?, 'egreso', ?, ?, ?, ?, 'debito', TRUE, 'pendiente')`,
+		usuarioID, f.MontoEstimado, periodo+"-01", f.CategoriaID, f.Descripcion)
+	return err
+}
+
 func (r *CostoFijoRepo) CreateTransaccionesFromFijos(ctx context.Context, usuarioID int64, periodo string, fijos []model.CostoFijo) error {
 	for _, f := range fijos {
-		_, err := r.db.ExecContext(ctx,
-			`INSERT INTO transacciones (usuario_id, tipo, monto, fecha, categoria_id, descripcion, medio_pago, es_fijo, estado)
-			 VALUES (?, 'egreso', ?, ?, ?, ?, 'debito', TRUE, 'pendiente')`,
-			usuarioID, f.MontoEstimado, periodo+"-01", f.CategoriaID, f.Descripcion)
-		if err != nil {
+		if err := r.PrecargarEnPeriodo(ctx, usuarioID, periodo, f); err != nil {
 			return err
 		}
 	}

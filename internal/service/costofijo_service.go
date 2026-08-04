@@ -2,17 +2,19 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"finanzas_personales/internal/model"
 	"finanzas_personales/internal/repository"
 )
 
 type CostoFijoService struct {
-	repo *repository.CostoFijoRepo
+	repo    *repository.CostoFijoRepo
+	mesRepo *repository.MesRepo
 }
 
-func NewCostoFijoService(r *repository.CostoFijoRepo) *CostoFijoService {
-	return &CostoFijoService{repo: r}
+func NewCostoFijoService(r *repository.CostoFijoRepo, mr *repository.MesRepo) *CostoFijoService {
+	return &CostoFijoService{repo: r, mesRepo: mr}
 }
 
 type CreateCostoFijoInput struct {
@@ -43,6 +45,9 @@ func (s *CostoFijoService) Create(ctx context.Context, usuarioID int64, input Cr
 		TipoPeriodo:    input.TipoPeriodo,
 	}
 	if err := s.repo.Create(ctx, c); err != nil {
+		return nil, err
+	}
+	if err := s.syncMesActual(ctx, usuarioID, *c); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -85,9 +90,31 @@ func (s *CostoFijoService) ToggleActivo(ctx context.Context, usuarioID, id int64
 	if err := s.repo.Update(ctx, c); err != nil {
 		return nil, err
 	}
+	if c.Activo {
+		if err := s.syncMesActual(ctx, usuarioID, *c); err != nil {
+			return nil, err
+		}
+	}
 	return c, nil
 }
 
 func (s *CostoFijoService) Delete(ctx context.Context, usuarioID, id int64) error {
 	return s.repo.Delete(ctx, id, usuarioID)
+}
+
+// syncMesActual materializa un costo fijo activo en el mes en curso para que
+// aparezca en el balance. Se omite si el mes ya está cerrado (inmutabilidad).
+func (s *CostoFijoService) syncMesActual(ctx context.Context, usuarioID int64, f model.CostoFijo) error {
+	if !f.Activo {
+		return nil
+	}
+	periodo := time.Now().Format("2006-01")
+	mes, err := s.mesRepo.FindOrCreate(ctx, usuarioID, periodo)
+	if err != nil {
+		return err
+	}
+	if mes.Estado == "cerrado" {
+		return nil
+	}
+	return s.repo.PrecargarEnPeriodo(ctx, usuarioID, periodo, f)
 }

@@ -99,20 +99,10 @@ func (h *PagesHandler) BalancePage(w http.ResponseWriter, r *http.Request) {
 	uid := middleware.UserIDFromContext(r.Context())
 	idStr := chi.URLParam(r, "id")
 	id, _ := strconv.ParseInt(idStr, 10, 64)
-	var mes *model.Mes
-	var err error
-	if id > 0 {
-		mes, err = h.mesSvc.GetByID(r.Context(), id, uid)
-	} else {
-		mes, err = h.mesSvc.GetCurrent(r.Context(), uid)
-	}
+	mes, transacciones, err := h.mesSvc.Balance(r.Context(), uid, id)
 	if err != nil {
 		renderTemplate(w, "balance", map[string]interface{}{"error": err.Error()})
 		return
-	}
-	transacciones, err := h.transSvc.ListByPeriodo(r.Context(), uid, mes.Periodo)
-	if err != nil {
-		transacciones = []model.Transaccion{}
 	}
 	renderTemplate(w, "balance", map[string]interface{}{
 		"mes":           mes,
