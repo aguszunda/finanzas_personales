@@ -13,12 +13,13 @@ Monolito de administración financiera personal / Pymes basado en los documentos
 Administracion_financiera/
 ├── cmd/
 │   └── server/
-│       └── main.go              # Entry point, router, conexión DB, migraciones
+│       ├── main.go              # Entry point, wiring de dependencias
+│       └── router.go            # Router chi (compartido con los tests de integración)
 ├── internal/
 │   ├── config/                  # Configuración 12-factor (env vars)
 │   │   └── config.go
 │   ├── model/                   # Tipos de dominio compartidos
-│   │   ├── models.go            # Usuario, Transaccion, CostoFijo, Categoria, Mes...
+│   │   ├── models.go            # Usuario, Transaccion, CostoFijo, Categoria, Mes, Deuda...
 │   │   └── errors.go            # Errores de dominio tipados
 │   ├── middleware/              # Capa transversal HTTP
 │   │   ├── auth.go              # JWT → inyecta userID en context
@@ -29,13 +30,15 @@ Administracion_financiera/
 │   │   ├── transaccion_repo.go
 │   │   ├── costofijo_repo.go
 │   │   ├── categoria_repo.go
-│   │   └── mes_repo.go
+│   │   ├── mes_repo.go
+│   │   └── deuda_repo.go
 │   ├── service/                 # Lógica de negocio
 │   │   ├── auth_service.go      # Registro, login, JWT
 │   │   ├── transaccion_service.go
 │   │   ├── costofijo_service.go
 │   │   ├── mes_service.go       # Cierre mensual, recálculo, precarga costos fijos
-│   │   └── dashboard_service.go # Métricas y agregaciones
+│   │   ├── dashboard_service.go # Métricas y agregaciones
+│   │   └── deuda_service.go     # Gestión de deudas
 │   └── handler/                 # Capa HTTP (JSON API + páginas HTMX)
 │       ├── helpers.go           # Respuestas JSON, manejo de errores
 │       ├── template.go          # Carga de templates (embed)
@@ -45,6 +48,7 @@ Administracion_financiera/
 │       ├── mes_handler.go
 │       ├── dashboard_handler.go
 │       ├── categoria_handler.go
+│       ├── deuda_handler.go
 │       └── pages_handler.go     # Páginas HTML (dashboard, transacciones, balance)
 ├── web/
 │   ├── embed.go                 # //go:embed templates → FS
@@ -55,14 +59,22 @@ Administracion_financiera/
 │       ├── dashboard.html
 │       ├── transacciones.html
 │       ├── costos_fijos.html
-│       └── balance.html
+│       ├── balance.html
+│       ├── meses.html
+│       └── deudas.html
 ├── migrations/
-│   ├── 001_init.up.sql
-│   └── 001_init.down.sql
+│   ├── 001_init.up.sql / .down.sql
+│   └── 002_deudas.up.sql / .down.sql
+├── scripts/
+│   ├── db-init.sh              # Crea la DB y aplica migraciones (make db-init)
+│   └── coverage.sh             # Test coverage (make coverage)
 ├── docs/
 │   ├── ARQUITECTURA.excalidraw  # Diagrama arquitectónico (abrir en excalidraw.com)
 │   └── API.md                   # Documentación de endpoints con curls
+├── .githooks/
+│   └── commit-msg               # Valida Conventional Commits (make git-hooks)
 ├── Dockerfile                   # Multi-stage → binario único + templates
+├── docker-compose.yml           # MySQL + migrate + app
 ├── Makefile
 ├── go.mod / go.sum
 └── .env.example
@@ -110,11 +122,14 @@ RequestID → Recoverer → Logging → CORS → DetectHTMX → Timeout
 | GET | `/api/meses/current` | Mes actual |
 | POST | `/api/meses/{id}/cerrar` | Cerrar mes + precargar costos fijos |
 | POST | `/api/meses/{id}/recalcular` | Recalcular indicadores |
+| GET/POST | `/api/deudas` | Listar / crear deudas |
+| GET/PUT/DELETE | `/api/deudas/{id}` | CRUD deuda |
 | GET | `/api/dashboard` | Métricas JSON del dashboard |
 | GET | `/api/dashboard/page` | Dashboard HTML |
 | GET | `/api/transacciones/page` | Transacciones HTML |
 | GET | `/api/costos-fijos/page` | Costos fijos HTML |
 | GET | `/api/balance/page`, `/api/balance/{id}/page` | Balance imprimible |
+| GET | `/api/meses/page`, `/api/deudas/page` | Páginas HTML de meses y deudas |
 
 ---
 
@@ -136,6 +151,11 @@ RequestID → Recoverer → Logging → CORS → DetectHTMX → Timeout
 
 ### `internal/service/auth_service.go`
 - `Register()` / `Login()`: hash bcrypt + emisión de JWT (HS256) con `sub = userID`.
+
+### `internal/service/deuda_service.go`
+- `Create()`: valida entidad, monto total > 0 y `saldo_pendiente` en `[0, monto_total]`; tipo por defecto `otro`
+  (tipos válidos: `tarjeta_credito`, `prestamo`, `hipoteca`, `personal`, `otro`).
+- `Update()`/`Delete()`: operan sobre deudas del usuario autenticado (tenancy por `usuario_id`).
 
 ### `internal/handler/helpers.go`
 - `handleServiceError()`: traduce errores de dominio (`ErrNotFound`, `ErrMesCerrado`, …) a códigos HTTP.
@@ -305,6 +325,29 @@ curl -s -X PUT http://localhost:8080/api/costos-fijos/1 \
 curl -s -X DELETE http://localhost:8080/api/costos-fijos/1 -H "Authorization: Bearer $TOKEN" -w "%{http_code}"
 ```
 
+### Deudas
+
+```bash
+# Crear
+curl -s -X POST http://localhost:8080/api/deudas \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Cuota notebook","monto_total":300000,"saldo_pendiente":180000,"tasa_interes":42.5,"proximo_vencimiento":"2026-08-15"}'
+
+# Listar
+curl -s http://localhost:8080/api/deudas -H "Authorization: Bearer $TOKEN" | jq
+
+# Ver una
+curl -s http://localhost:8080/api/deudas/1 -H "Authorization: Bearer $TOKEN" | jq
+
+# Editar (ej: actualizar saldo pendiente)
+curl -s -X PUT http://localhost:8080/api/deudas/1 \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Cuota notebook","monto_total":300000,"saldo_pendiente":120000,"tasa_interes":42.5,"proximo_vencimiento":"2026-08-15"}'
+
+# Eliminar
+curl -s -X DELETE http://localhost:8080/api/deudas/1 -H "Authorization: Bearer $TOKEN" -w "%{http_code}"
+```
+
 ### Meses y Cierre
 
 ```bash
@@ -336,6 +379,8 @@ open "http://localhost:8080/"                          # Redirige a /login
 open "http://localhost:8080/api/dashboard/page"        # Dashboard
 open "http://localhost:8080/api/transacciones/page"    # Transacciones
 open "http://localhost:8080/api/costos-fijos/page"     # Costos fijos
+open "http://localhost:8080/api/meses/page"            # Meses
+open "http://localhost:8080/api/deudas/page"           # Deudas
 open "http://localhost:8080/api/balance/page"          # Balance (Ctrl+P para PDF)
 open "http://localhost:8080/api/balance/1/page"        # Balance de un mes específico
 ```
@@ -357,6 +402,8 @@ transacciones(id, usuario_id, tipo, monto, fecha, categoria_id, descripcion,
       estado[pendiente|confirmado|ajuste], mes_id?, created_at, updated_at)
 costos_fijos(id, usuario_id, categoria_id, descripcion, monto_estimado,
       dia_vencimiento[1-31], activo, tipo_periodo[mensual|bimestral|anual], created_at)
+deudas(id, usuario_id, tipo[tarjeta_credito|prestamo|hipoteca|personal|otro], entidad,
+      descripcion, monto_total, saldo_pendiente, tasa_interes, proximo_vencimiento, created_at, updated_at)
 ```
 
 Categorías por defecto (seed): Sueldo 💰, Freelance 💻, Ventas 📦, Otros Ingresos 📥,
