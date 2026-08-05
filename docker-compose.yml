@@ -1,8 +1,12 @@
 # Docker Compose para el entorno de desarrollo de finanzas_personales.
 #
-# Levanta los dos servicios que necesita la app:
-#   - db:  MySQL 8.4 LTS con la base `finanzas` (utf8mb4 / utf8mb4_unicode_ci)
-#   - app: el binario Go compilado desde el Dockerfile (migraciones inline al arrancar)
+# Levanta los servicios que necesita la app:
+#   - db:      MySQL 8.4 LTS con la base `finanzas` (utf8mb4 / utf8mb4_unicode_ci)
+#   - migrate: aplica migrations/*.up.sql con golang-migrate (corre una vez)
+#   - app:     el binario Go compilado desde el Dockerfile
+#
+# La app NO migra al arrancar: main.go no contiene SQL. `migrate` se encarga
+# de dejar el esquema listo y la app arranca solo cuando terminó.
 #
 # Uso:
 #   docker compose up -d --build   # construir y levantar
@@ -42,12 +46,24 @@ services:
     # Si querés conectarte desde Workbench, descomentá:
     #   - "127.0.0.1:3306:3306"
 
+  migrate:
+    image: migrate/migrate:v4.18.3
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations
+    command:
+      - "-path=/migrations"
+      - "-database=mysql://${MYSQL_USER:-finanzas}:${MYSQL_PASSWORD:-finanzas}@tcp(db:3306)/${MYSQL_DATABASE:-finanzas}?parseTime=true&multiStatements=true&charset=utf8mb4&loc=Local"
+      - "up"
+
   app:
     build: .
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       PORT: ${PORT:-8080}
       DATABASE_URL: '${MYSQL_USER:-finanzas}:${MYSQL_PASSWORD:-finanzas}@tcp(db:3306)/${MYSQL_DATABASE:-finanzas}?parseTime=true&multiStatements=true&charset=utf8mb4&loc=Local'

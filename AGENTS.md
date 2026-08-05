@@ -14,14 +14,16 @@ Go 1.24 monolith: personal-finance web app. One binary serving a JSON API + serv
 
 ## Setup gotchas
 
-- Create the DB first: `mysql -u root -e "CREATE DATABASE IF NOT EXISTS finanzas CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"`. The app only creates tables, not the database itself.
+- Create + migrate the DB first: `make db-init` (creates the `finanzas` database with `utf8mb4_unicode_ci` if missing and applies `migrations/*.up.sql`). The app does NOT create the database nor run migrations.
 - Templates are embedded with `//go:embed` (`web/embed.go`), so template edits require rebuilding the binary.
 
 ## Migrations (important)
 
-- At startup the app runs its OWN inline migration (`cmd/server/main.go:runMigrations`) only when `schema_migrations` max version < 1.
-- The `migrations/*.sql` files are for `make migrate-up/down` (golang-migrate) and are NOT run by the app automatically.
-- If you change the schema you must update BOTH the inline SQL in `runMigrations` (fresh DBs) and the matching `.sql` file. Existing DBs will not re-run the inline migration; bump the version tracking or apply manually.
+- The app does **not** migrate at startup. `cmd/server/main.go` has no SQL — the only schema source of truth is `migrations/*.sql`.
+- `make db-init` (`scripts/db-init.sh`): creates the DB (if missing, `utf8mb4_unicode_ci`) and runs golang-migrate up. It also collapses duplicate `schema_migrations` rows left behind by the legacy inline migration (golang-migrate expects a single row).
+- `make migrate-up` / `make migrate-down`: golang-migrate pinned to `MIGRATE_VERSION=v4.18.3`; the CLI needs `-tags 'mysql'` or the driver isn't registered.
+- If you change the schema: add a new `NNN_nombre.up.sql` + `NNN_nombre.down.sql` pair (bump the number). Never edit an applied migration. Then run `make migrate-up`.
+- Integration tests exercise the real migration files through golang-migrate (`cmd/server/migrate_helper_test.go`), so tests always run the same schema as dev/prod.
 
 ## Architecture
 
@@ -53,4 +55,4 @@ handler → service → repository → MySQL   (all via concrete types; model ho
 
 ## Adding a feature (house pattern)
 
-1. struct in `model/models.go` → 2. schema (both places above) → 3. repo methods (filter by `usuario_id`) → 4. service with validations → 5. handler → 6. wire + routes in `cmd/server/main.go` → 7. template + nav link in `layout.html`.
+1. struct in `model/models.go` → 2. schema (`migrations/NNN_nombre.up.sql` + `.down.sql`) → 3. repo methods (filter by `usuario_id`) → 4. service with validations → 5. handler → 6. wire + routes in `cmd/server/main.go` → 7. template + nav link in `layout.html`.

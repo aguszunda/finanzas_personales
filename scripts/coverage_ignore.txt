@@ -8,7 +8,6 @@
 #
 # cmd/server/main.go — entrypoint del binario (package main). `main()` orquesta
 # la configuración, la conexión, las señales y el shutdown; no puede importarse
-# desde un test ni aislarse sin refactorizaciones forzadas. Nota: runMigrations()
-# sí se ejecuta en los tests de integración a través de newTestEnv, y se sigue
-# contando la parte cubierta de este archivo que quede fuera del patrón.
+# desde un test ni aislarse sin refactorizaciones forzadas. Ya no contiene SQL:
+# las migraciones viven en migrations/*.sql y las ejecuta golang-migrate.
 ^cmd/server/main\.go

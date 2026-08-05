@@ -149,10 +149,11 @@ RequestID → Recoverer → Logging → CORS → DetectHTMX → Timeout
 - MySQL 8+ (o MariaDB)
 
 ### 1) Base de datos
-Con MySQL instalado localmente (Homebrew: `brew services start mysql`), crear la base:
+Crear la base (si no existe) y aplicar las migraciones:
 ```bash
-mysql -u root -e "CREATE DATABASE IF NOT EXISTS finanzas CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+make db-init    # crea `finanzas` con utf8mb4_unicode_ci y corre migrations/*.up.sql
 ```
+> La app NO migra al arrancar: `main.go` no tiene SQL. El único camino al esquema es `make db-init` (o `make migrate-up`). El script es idempotente y pinnea golang-migrate.
 
 ### 1.1) Conexión desde MySQL Workbench
 El proyecto usa la misma instancia local de MySQL. Para ver y explorar los datos desde Workbench:
@@ -170,7 +171,7 @@ El proyecto usa la misma instancia local de MySQL. Para ver y explorar los datos
 | Password | (vacío — guardalo en el *keychain* si te lo pide) |
 
 3. Click **Test Connection** → **OK** → doble click en la conexión para abrirla.
-4. En el panel izquierdo (*SCHEMAS*) aparece el esquema `finanzas`. Las tablas (`usuarios`, `categorias`, `meses`, `transacciones`, `costos_fijos`) se crean solas al iniciar la app (`make run`).
+4. En el panel izquierdo (*SCHEMAS*) aparece el esquema `finanzas`. Las tablas (`usuarios`, `categorias`, `meses`, `transacciones`, `costos_fijos`, `deudas`) se crean con `make db-init`.
 
 > Si configuraste una contraseña para `root` (o usás otro usuario), los datos de la conexión tienen que coincidir con el `DATABASE_URL` de tu `.env`.
 
@@ -186,11 +187,11 @@ set -a; source .env; set +a
 ```bash
 make run        # o: go run ./cmd/server
 ```
-La migración `001_init` se ejecuta automáticamente al arrancar (crea tablas + categorías por defecto).
+> Antes del primer arranque corré `make db-init` (crea la base y aplica las migraciones).
 
 ### 4) Docker
 
-**Opción A — Stack completo con Docker Compose** (MySQL + app, recomendado):
+**Opción A — Stack completo con Docker Compose** (MySQL + migraciones + app, recomendado):
 
 ```bash
 make docker-up       # = docker compose up -d --build
@@ -199,7 +200,7 @@ docker compose logs -f app
 make docker-down     # detener (conserva los datos en el volumen db_data)
 ```
 
-La base `finanzas` se crea sola con `utf8mb4_unicode_ci` (variables `MYSQL_*` en `.env`). Las migraciones inline corren al arrancar la app. El puerto de MySQL no se publica en el host por defecto; descomentá `ports` en `docker-compose.yml` si querés conectarte desde Workbench.
+La base `finanzas` se crea sola con `utf8mb4_unicode_ci` (variables `MYSQL_*` en `.env`). Un servicio `migrate` aplica `migrations/*.up.sql` antes de que arranque la app. El puerto de MySQL no se publica en el host por defecto; descomentá `ports` en `docker-compose.yml` si querés conectarte desde Workbench.
 
 **Opción B — Sólo la imagen:**
 ```bash
