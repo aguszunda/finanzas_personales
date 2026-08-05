@@ -1,0 +1,73 @@
+# Docker Compose para el entorno de desarrollo de finanzas_personales.
+#
+# Levanta los dos servicios que necesita la app:
+#   - db:  MySQL 8.4 LTS con la base `finanzas` (utf8mb4 / utf8mb4_unicode_ci)
+#   - app: el binario Go compilado desde el Dockerfile (migraciones inline al arrancar)
+#
+# Uso:
+#   docker compose up -d --build   # construir y levantar
+#   docker compose logs -f app     # logs en vivo
+#   docker compose down            # detener (conserva el volumen de la base)
+#   docker compose down -v         # detener y borrar datos de la base
+#
+# Variables configurables desde .env (ver .env.example):
+#   MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD,
+#   PORT, JWT_SECRET, JWT_EXPIRATION_HOURS, CORS_ORIGIN, LOG_LEVEL.
+# Todas tienen defaults de desarrollo.
+
+name: finanzas
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-finanzas}
+      MYSQL_USER: ${MYSQL_USER:-finanzas}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-finanzas}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-finanzas-root}
+    command:
+      # La base creada por MYSQL_DATABASE hereda el collation del server.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    # Sin puerto publicado en el host: la app lo alcanza por la red interna.
+    # Si querés conectarte desde Workbench, descomentá:
+    #   - "127.0.0.1:3306:3306"
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: ${PORT:-8080}
+      DATABASE_URL: '${MYSQL_USER:-finanzas}:${MYSQL_PASSWORD:-finanzas}@tcp(db:3306)/${MYSQL_DATABASE:-finanzas}?parseTime=true&multiStatements=true&charset=utf8mb4&loc=Local'
+      JWT_SECRET: ${JWT_SECRET:-reemplazar-con-secreto-seguro-en-produccion}
+      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-72}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    stop_grace_period: 10s
+
+volumes:
+  db_data:
+
+networks:
+  default:
+    driver: bridge

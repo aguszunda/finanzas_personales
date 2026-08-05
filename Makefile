@@ -1,4 +1,4 @@
-.PHONY: build run test coverage clean dev
+.PHONY: build run test coverage clean dev docker-build docker-run docker-up docker-down
 
 build:
 	go build -o bin/server ./cmd/server
@@ -33,6 +33,12 @@ docker-build:
 docker-run:
 	docker run -p 8080:8080 --env-file .env finanzas-personales
 
+docker-up:
+	docker compose up -d --build
+
+docker-down:
+	docker compose down
+
 .PHONY: help
 help:
 	@echo "Comandos disponibles:"
@@ -44,3 +50,5 @@ help:
 	@echo "  make deps        - Actualizar dependencias"
 	@echo "  make docker-build - Construir imagen Docker"
 	@echo "  make docker-run  - Ejecutar contenedor Docker"
+	@echo "  make docker-up   - Levantar stack Docker Compose (MySQL + app)"
+	@echo "  make docker-down - Detener stack Docker Compose"

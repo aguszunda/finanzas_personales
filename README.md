@@ -189,6 +189,19 @@ make run        # o: go run ./cmd/server
 La migración `001_init` se ejecuta automáticamente al arrancar (crea tablas + categorías por defecto).
 
 ### 4) Docker
+
+**Opción A — Stack completo con Docker Compose** (MySQL + app, recomendado):
+
+```bash
+make docker-up       # = docker compose up -d --build
+# App en http://localhost:8080  ·  MySQL interno en la red de compose
+docker compose logs -f app
+make docker-down     # detener (conserva los datos en el volumen db_data)
+```
+
+La base `finanzas` se crea sola con `utf8mb4_unicode_ci` (variables `MYSQL_*` en `.env`). Las migraciones inline corren al arrancar la app. El puerto de MySQL no se publica en el host por defecto; descomentá `ports` en `docker-compose.yml` si querés conectarte desde Workbench.
+
+**Opción B — Sólo la imagen:**
 ```bash
 make docker-build
 make docker-run
