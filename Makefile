@@ -1,4 +1,4 @@
-.PHONY: build run test coverage clean dev deps db-init migrate-up migrate-down docker-build docker-run docker-up docker-down help
+.PHONY: build run test coverage clean dev deps db-init migrate-up migrate-down docker-build docker-run docker-up docker-down git-hooks help
 
 MIGRATE_VERSION ?= v4.18.3
 
@@ -44,6 +44,11 @@ docker-up:
 docker-down:
 	docker compose down
 
+git-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/commit-msg
+	@echo "Hooks de git instalados (core.hooksPath = .githooks)"
+
 .PHONY: help
 help:
 	@echo "Comandos disponibles:"
@@ -60,3 +65,4 @@ help:
 	@echo "  make docker-run  - Ejecutar contenedor Docker"
 	@echo "  make docker-up   - Levantar stack Docker Compose (MySQL + app)"
 	@echo "  make docker-down - Detener stack Docker Compose"
+	@echo "  make git-hooks   - Instalar hooks de git (valida Conventional Commits)"

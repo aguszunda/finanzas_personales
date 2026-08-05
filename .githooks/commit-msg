@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+#
+# Hook commit-msg: valida mensajes de commit con la convención
+# Conventional Commits (ver "Commits" en AGENTS.md).
+#
+# Instalación: make git-hooks   (o: git config core.hooksPath .githooks)
+#
+# El hook recibe la ruta del archivo con el mensaje (COMMIT_EDITMSG).
+# Formato: <type>(<scope>): <subject>   ej: "feat(meses): cerrar mes"
+set -e
+
+msg_file="$1"
+[ -n "$msg_file" ] || { echo "commit-msg: falta el archivo del mensaje" >&2; exit 1; }
+
+# Primer renglón no vacío que no sea comentario (git guarda comentarios con #).
+subject="$(grep -v '^#' "$msg_file" | sed -n '/[^[:space:]]/{p;q;}')"
+
+if [ -z "$subject" ]; then
+  echo "commit-msg: el mensaje de commit está vacío" >&2
+  exit 1
+fi
+
+# Se permite el mensaje por defecto de "git revert".
+printf '%s' "$subject" | grep -Eq '^Revert ".*"$' && exit 0
+
+if printf '%s' "$subject" | grep -Eq '^(feat|fix|refactor|chore|docs|test|style|perf|build|ci)(\([a-z0-9_-]+\))?!?: .+$'; then
+  exit 0
+fi
+
+echo "commit-msg: el mensaje no sigue Conventional Commits:" >&2
+echo "  $subject" >&2
+echo "Formato esperado: <type>(<scope>): <subject>" >&2
+echo "Tipos válidos: feat | fix | refactor | chore | docs | test | style | perf | build | ci" >&2
+echo "Ejemplo: feat(transacciones): agregar exportacion a CSV" >&2
+exit 1

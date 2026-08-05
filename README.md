@@ -373,6 +373,16 @@ go build ./...
 go test ./...
 ```
 
+## 8.1 Commits
+
+Todos los commits deben seguir [Conventional Commits](https://www.conventionalcommits.org/) (`<type>(<scope>): <subject>`). Instalá el hook que lo valida una vez por clon:
+
+```bash
+make git-hooks
+```
+
+Si el hook rechaza un mensaje, corregilo y volvé a commitear.
+
 ---
 
 ## 9. Próximos Pasos (Fase 2)

@@ -11,6 +11,25 @@ Go 1.24 monolith: personal-finance web app. One binary serving a JSON API + serv
   - The router is built by `buildRouter` in `cmd/server/router.go`, shared by `main.go` and the integration tests.
 - Verify: `go vet ./... && go build ./...`
 - Env: copy `.env.example` to `.env`. Load it with `set -a; source .env; set +a` — NOT `export $(cat .env)` because the MySQL DSN contains `&` which the shell would mis-parse.
+- Commit hooks: `make git-hooks` (validates Conventional Commits via `.githooks/commit-msg`).
+
+## Commits (Conventional Commits)
+
+Every commit MUST follow [Conventional Commits v1.0.0](https://www.conventionalcommits.org/). The `commit-msg` hook (`.githooks/`, install with `make git-hooks`) rejects commits that don't comply, so run it before committing.
+
+Format: `<type>(<scope>): <subject>`
+
+- Type (required): `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `style`, `perf`, `build`, `ci`.
+- Scope (optional): the affected area, lowercase snake-case, e.g. `feat(transacciones): ...`.
+- Subject: lowercase, imperative, no trailing period, < 72 chars. Spanish.
+- Body (optional): after a blank line, explains the *what* and *why* (not the how).
+- No emojis. Breaking changes: add `!` before `:` or `BREAKING CHANGE:` in the body.
+
+Examples:
+- `feat(meses): cerrar mes con recalculo de ahorro`
+- `fix(transacciones): validar monto positivo`
+- `refactor: move database migrations out of main.go`
+- `docs: document conventional commits for all commits`
 
 ## Setup gotchas
 
