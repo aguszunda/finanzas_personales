@@ -11,17 +11,38 @@ Go 1.24 monolith: personal-finance web app. One binary serving a JSON API + serv
   - The router is built by `buildRouter` in `cmd/server/router.go`, shared by `main.go` and the integration tests.
 - Verify: `go vet ./... && go build ./...`
 - Env: copy `.env.example` to `.env`. Load it with `set -a; source .env; set +a` — NOT `export $(cat .env)` because the MySQL DSN contains `&` which the shell would mis-parse.
+- Commit hooks: `make git-hooks` (validates Conventional Commits via `.githooks/commit-msg`).
+
+## Commits (Conventional Commits)
+
+Every commit MUST follow [Conventional Commits v1.0.0](https://www.conventionalcommits.org/). The `commit-msg` hook (`.githooks/`, install with `make git-hooks`) rejects commits that don't comply, so run it before committing.
+
+Format: `<type>(<scope>): <subject>`
+
+- Type (required): `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `style`, `perf`, `build`, `ci`.
+- Scope (optional): the affected area, lowercase snake-case, e.g. `feat(transacciones): ...`.
+- Subject: lowercase, imperative, no trailing period, < 72 chars. Spanish.
+- Body (optional): after a blank line, explains the *what* and *why* (not the how).
+- No emojis. Breaking changes: add `!` before `:` or `BREAKING CHANGE:` in the body.
+
+Examples:
+- `feat(meses): cerrar mes con recalculo de ahorro`
+- `fix(transacciones): validar monto positivo`
+- `refactor: move database migrations out of main.go`
+- `docs: document conventional commits for all commits`
 
 ## Setup gotchas
 
-- Create the DB first: `mysql -u root -e "CREATE DATABASE IF NOT EXISTS finanzas CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"`. The app only creates tables, not the database itself.
+- Create + migrate the DB first: `make db-init` (creates the `finanzas` database with `utf8mb4_unicode_ci` if missing and applies `migrations/*.up.sql`). The app does NOT create the database nor run migrations.
 - Templates are embedded with `//go:embed` (`web/embed.go`), so template edits require rebuilding the binary.
 
 ## Migrations (important)
 
-- At startup the app runs its OWN inline migration (`cmd/server/main.go:runMigrations`) only when `schema_migrations` max version < 1.
-- The `migrations/*.sql` files are for `make migrate-up/down` (golang-migrate) and are NOT run by the app automatically.
-- If you change the schema you must update BOTH the inline SQL in `runMigrations` (fresh DBs) and the matching `.sql` file. Existing DBs will not re-run the inline migration; bump the version tracking or apply manually.
+- The app does **not** migrate at startup. `cmd/server/main.go` has no SQL — the only schema source of truth is `migrations/*.sql`.
+- `make db-init` (`scripts/db-init.sh`): creates the DB (if missing, `utf8mb4_unicode_ci`) and runs golang-migrate up. It also collapses duplicate `schema_migrations` rows left behind by the legacy inline migration (golang-migrate expects a single row).
+- `make migrate-up` / `make migrate-down`: golang-migrate pinned to `MIGRATE_VERSION=v4.18.3`; the CLI needs `-tags 'mysql'` or the driver isn't registered.
+- If you change the schema: add a new `NNN_nombre.up.sql` + `NNN_nombre.down.sql` pair (bump the number). Never edit an applied migration. Then run `make migrate-up`.
+- Integration tests exercise the real migration files through golang-migrate (`cmd/server/migrate_helper_test.go`), so tests always run the same schema as dev/prod.
 
 ## Architecture
 
@@ -53,4 +74,4 @@ handler → service → repository → MySQL   (all via concrete types; model ho
 
 ## Adding a feature (house pattern)
 
-1. struct in `model/models.go` → 2. schema (both places above) → 3. repo methods (filter by `usuario_id`) → 4. service with validations → 5. handler → 6. wire + routes in `cmd/server/main.go` → 7. template + nav link in `layout.html`.
+1. struct in `model/models.go` → 2. schema (`migrations/NNN_nombre.up.sql` + `.down.sql`) → 3. repo methods (filter by `usuario_id`) → 4. service with validations → 5. handler → 6. wire + routes in `cmd/server/main.go` → 7. template + nav link in `layout.html`.

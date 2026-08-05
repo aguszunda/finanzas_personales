@@ -568,8 +568,8 @@ decide cómo exponerlos. Eso mantiene la lógica de negocio desacoplada de la we
 ```bash
 cp .env.example .env          # configurar DATABASE_URL, JWT_SECRET...
 set -a; source .env; set +a   # cargar variables (importante: el DSN tiene "&")
-mysql -u root -e "CREATE DATABASE IF NOT EXISTS finanzas CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-make run                      # compila y corre en :8080 (la migración corre sola)
+make db-init                  # crea la base (si falta) y aplica migrations/*.up.sql
+make run                      # compila y corre en :8080 (la app NO migra sola)
 ```
 
 ### 13.2 Flujo típico para agregar una feature
@@ -577,7 +577,7 @@ make run                      # compila y corre en :8080 (la migración corre so
 Siguiendo el patrón del proyecto, para agregar algo nuevo (ej. "metas de ahorro"):
 
 1. **`model/models.go`**: agregar la struct (`MetaAhorro` ya existe como modelo).
-2. **`migrations/` + `main.go:runMigrations`**: crear la tabla.
+2. **`migrations/`** (`NNN_nombre.up.sql` + `.down.sql`): crear la tabla y correr `make migrate-up`.
 3. **`internal/repository/`**: nuevo repo con métodos SQL (`Create`, `FindByID`,
    `FindByUsuarioID`, ...) siempre filtrando por `usuario_id`.
 4. **`internal/service/`**: nueva service con las reglas de negocio y validaciones.

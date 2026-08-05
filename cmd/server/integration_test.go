@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -67,7 +66,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	if err := db.Ping(); err != nil {
 		t.Fatalf("ping test database: %v", err)
 	}
-	runMigrations(db)
+	applyMigrations(t, cfg.FormatDSN(), -1)
 	t.Cleanup(func() {
 		db.Close()
 		_, _ = admin.Exec("DROP DATABASE IF EXISTS " + name)
@@ -946,15 +945,13 @@ func TestMigrations_UpgradeDesdeV1(t *testing.T) {
 		admin.Close()
 	})
 
-	// Simula una base existente en v1: esquema 001 aplicado y versión registrada.
-	if _, err := db.ExecContext(context.Background(), migration001); err != nil {
-		t.Fatalf("apply migration 001: %v", err)
-	}
-	if _, err := db.Exec("INSERT INTO schema_migrations (version, dirty) VALUES (1, FALSE)"); err != nil {
-		t.Fatalf("record version 1: %v", err)
-	}
+	// Simula una base existente en v1: corre solo la migración 001 desde los
+	// archivos (golang-migrate registra la versión en schema_migrations).
+	applyMigrations(t, cfg.FormatDSN(), 1)
 
-	runMigrations(db)
+	// La app ya no migra en runtime; el upgrade se hace igual que en dev:
+	// correr las migraciones desde los archivos hasta la última versión.
+	applyMigrations(t, cfg.FormatDSN(), -1)
 
 	var tabla int
 	if err := db.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'deudas'", name).Scan(&tabla); err != nil {
