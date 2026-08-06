@@ -37,14 +37,16 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent" ]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 30s
-    # Sin puerto publicado en el host: la app lo alcanza por la red interna.
-    # Si querés conectarte desde Workbench, descomentá:
-    #   - "127.0.0.1:3306:3306"
+    # Puerto publicado en el host para conectarse desde Workbench/cliente
+    # (la app lo alcanza igual por la red interna de compose).
+    # 3307 porque el 3306 del host lo usa el MySQL local (make run).
+    ports:
+      - "127.0.0.1:3307:3306"
 
   migrate:
     image: migrate/migrate:v4.18.3
@@ -74,7 +76,7 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
