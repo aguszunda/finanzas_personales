@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const validTestSecret = "clave-de-prueba-aleatoria-de-al-menos-32-caracteres"
+const validTestValue = "clave-de-prueba-aleatoria-de-al-menos-32-caracteres"
 
 func setEnv(t *testing.T, key, value string) {
 	t.Helper()
@@ -20,7 +20,7 @@ func setEnv(t *testing.T, key, value string) {
 
 func validEnv(t *testing.T) {
 	t.Helper()
-	setEnv(t, "JWT_SECRET", validTestSecret)
+	setEnv(t, "JWT_SECRET", validTestValue)
 	setEnv(t, "DATABASE_URL", "root:pass@tcp(127.0.0.1:3306)/finanzas?parseTime=true")
 }
 
@@ -52,7 +52,7 @@ func TestLoad_Defaults(t *testing.T) {
 func TestLoad_Overrides(t *testing.T) {
 	setEnv(t, "PORT", "9090")
 	setEnv(t, "DATABASE_URL", "root:pass@tcp(db:3306)/finanzas?parseTime=true")
-	setEnv(t, "JWT_SECRET", validTestSecret)
+	setEnv(t, "JWT_SECRET", validTestValue)
 	setEnv(t, "JWT_EXPIRATION_HOURS", "24")
 	setEnv(t, "CORS_ORIGIN", "https://app.example.com")
 	setEnv(t, "LOG_LEVEL", "debug")
@@ -68,7 +68,7 @@ func TestLoad_Overrides(t *testing.T) {
 	if cfg.DatabaseURL != "root:pass@tcp(db:3306)/finanzas?parseTime=true" {
 		t.Errorf("unexpected DatabaseURL: %q", cfg.DatabaseURL)
 	}
-	if cfg.JWTSecret != validTestSecret {
+	if cfg.JWTSecret != validTestValue {
 		t.Errorf("unexpected JWTSecret: %q", cfg.JWTSecret)
 	}
 	if cfg.JWTExpiration != 24*time.Hour {
@@ -106,7 +106,7 @@ func TestLoad_RequiereJWTSecret(t *testing.T) {
 }
 
 func TestLoad_RequiereDatabaseURL(t *testing.T) {
-	setEnv(t, "JWT_SECRET", validTestSecret)
+	setEnv(t, "JWT_SECRET", validTestValue)
 	os.Unsetenv("DATABASE_URL")
 
 	_, err := Load()
@@ -146,7 +146,7 @@ func TestLoad_RechazaPlaceholders(t *testing.T) {
 }
 
 func TestLoad_RechazaDatabaseURLInvalida(t *testing.T) {
-	setEnv(t, "JWT_SECRET", validTestSecret)
+	setEnv(t, "JWT_SECRET", validTestValue)
 	setEnv(t, "DATABASE_URL", "postgres://user:pass@localhost/db")
 
 	_, err := Load()
