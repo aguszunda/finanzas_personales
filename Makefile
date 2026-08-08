@@ -36,13 +36,13 @@ docker-build:
 	docker build -t finanzas-personales .
 
 docker-run:
-	docker run -p 8080:8080 --env-file .env finanzas-personales
+	docker run -p 8080:8080 --env-file env.secrets finanzas-personales
 
 docker-up:
-	docker compose up -d --build
+	docker compose --env-file env.secrets up -d --build
 
 docker-down:
-	docker compose down
+	docker compose --env-file env.secrets down
 
 git-hooks:
 	git config core.hooksPath .githooks

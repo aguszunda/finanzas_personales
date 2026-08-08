@@ -114,7 +114,7 @@ func (s *MesService) calcularAcumulados(ctx context.Context, usuarioID int64, me
 		return err
 	}
 	mes.AhorroAcumulado = anterior + mes.Superavit
-	pasivos, err := s.deudaRepo.SumSaldoPendiente(ctx, usuarioID)
+	pasivos, err := s.deudaRepo.SumMontoTotal(ctx, usuarioID)
 	if err != nil {
 		return err
 	}

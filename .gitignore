@@ -1,5 +1,6 @@
 # Secrets (nunca commitear)
 .env
+env.secrets
 
 # Build artifacts
 bin/

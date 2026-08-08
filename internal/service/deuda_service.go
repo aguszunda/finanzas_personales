@@ -20,8 +20,6 @@ type CreateDeudaInput struct {
 	Entidad            string  `json:"entidad"`
 	Descripcion        string  `json:"descripcion"`
 	MontoTotal         float64 `json:"monto_total"`
-	SaldoPendiente     float64 `json:"saldo_pendiente"`
-	TasaInteres        float64 `json:"tasa_interes"`
 	ProximoVencimiento string  `json:"proximo_vencimiento"`
 }
 
@@ -34,10 +32,7 @@ var tiposDeudaValidos = map[string]bool{
 }
 
 func (s *DeudaService) Create(ctx context.Context, usuarioID int64, input CreateDeudaInput) (*model.Deuda, error) {
-	if input.Entidad == "" || input.MontoTotal <= 0 || input.SaldoPendiente < 0 {
-		return nil, model.ErrInvalidInput
-	}
-	if input.SaldoPendiente > input.MontoTotal {
+	if input.Entidad == "" || input.MontoTotal <= 0 {
 		return nil, model.ErrInvalidInput
 	}
 	if input.Tipo == "" {
@@ -52,8 +47,6 @@ func (s *DeudaService) Create(ctx context.Context, usuarioID int64, input Create
 		Entidad:            input.Entidad,
 		Descripcion:        input.Descripcion,
 		MontoTotal:         input.MontoTotal,
-		SaldoPendiente:     input.SaldoPendiente,
-		TasaInteres:        input.TasaInteres,
 		ProximoVencimiento: input.ProximoVencimiento,
 	}
 	if err := s.repo.Create(ctx, d); err != nil {
@@ -71,10 +64,7 @@ func (s *DeudaService) GetByID(ctx context.Context, id, usuarioID int64) (*model
 }
 
 func (s *DeudaService) Update(ctx context.Context, usuarioID, id int64, input CreateDeudaInput) (*model.Deuda, error) {
-	if input.Entidad == "" || input.MontoTotal <= 0 || input.SaldoPendiente < 0 {
-		return nil, model.ErrInvalidInput
-	}
-	if input.SaldoPendiente > input.MontoTotal {
+	if input.Entidad == "" || input.MontoTotal <= 0 {
 		return nil, model.ErrInvalidInput
 	}
 	if input.Tipo == "" {
@@ -91,8 +81,6 @@ func (s *DeudaService) Update(ctx context.Context, usuarioID, id int64, input Cr
 	d.Entidad = input.Entidad
 	d.Descripcion = input.Descripcion
 	d.MontoTotal = input.MontoTotal
-	d.SaldoPendiente = input.SaldoPendiente
-	d.TasaInteres = input.TasaInteres
 	d.ProximoVencimiento = input.ProximoVencimiento
 	if err := s.repo.Update(ctx, d); err != nil {
 		return nil, err

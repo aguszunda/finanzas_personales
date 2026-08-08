@@ -79,7 +79,7 @@
             {{range $.deudas}}
             <div style="display:flex;justify-content:space-between;margin-top:0.15rem">
                 <span>{{.Entidad}}{{if .Descripcion}} · {{.Descripcion}}{{end}}</span>
-                <span>$ {{printf "%.2f" .SaldoPendiente}}</span>
+                <span>$ {{printf "%.2f" .MontoTotal}}</span>
             </div>
             {{end}}
         </div>

@@ -60,7 +60,7 @@ const (
 		 ORDER BY cf.dia_vencimiento, cf.descripcion`
 	querySumSuperavitAnterior = `SELECT COALESCE(SUM(superavit), 0) FROM meses
 		 WHERE usuario_id = ? AND estado = 'cerrado' AND periodo < ?`
-	querySumSaldoPendiente = `SELECT COALESCE(SUM(saldo_pendiente), 0) FROM deudas WHERE usuario_id = ?`
+	querySumMontoTotal = `SELECT COALESCE(SUM(monto_total), 0) FROM deudas WHERE usuario_id = ?`
 )
 
 func newMesService(t *testing.T) (*MesService, sqlmock.Sqlmock) {
@@ -94,7 +94,7 @@ func TestMesService_Recalcular(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(querySumSuperavitAnterior)).
 		WithArgs(int64(1), "2026-08").
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
-	mock.ExpectQuery(regexp.QuoteMeta(querySumSaldoPendiente)).
+	mock.ExpectQuery(regexp.QuoteMeta(querySumMontoTotal)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
 
@@ -168,7 +168,7 @@ func TestMesService_Balance_RecomputaTotales(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(querySumSuperavitAnterior)).
 		WithArgs(int64(1), "2026-08").
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
-	mock.ExpectQuery(regexp.QuoteMeta(querySumSaldoPendiente)).
+	mock.ExpectQuery(regexp.QuoteMeta(querySumMontoTotal)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
 
@@ -228,7 +228,7 @@ func TestMesService_Cerrar_Success(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(querySumSuperavitAnterior)).
 		WithArgs(int64(1), "2026-08").
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(20000.0))
-	mock.ExpectQuery(regexp.QuoteMeta(querySumSaldoPendiente)).
+	mock.ExpectQuery(regexp.QuoteMeta(querySumMontoTotal)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(5000.0))
 
@@ -297,7 +297,7 @@ func TestMesService_Cerrar_SinMesAnterior(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(querySumSuperavitAnterior)).
 		WithArgs(int64(1), "2026-08").
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
-	mock.ExpectQuery(regexp.QuoteMeta(querySumSaldoPendiente)).
+	mock.ExpectQuery(regexp.QuoteMeta(querySumMontoTotal)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
 
@@ -362,7 +362,7 @@ func TestMesService_Balance_MesActual_SinID(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(querySumSuperavitAnterior)).
 		WithArgs(int64(1), periodo).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
-	mock.ExpectQuery(regexp.QuoteMeta(querySumSaldoPendiente)).
+	mock.ExpectQuery(regexp.QuoteMeta(querySumMontoTotal)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
 
@@ -408,7 +408,7 @@ func TestMesService_Balance_ConDeudasYMesCerradoAnterior(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(querySumSuperavitAnterior)).
 		WithArgs(int64(1), "2026-08").
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(20000.0))
-	mock.ExpectQuery(regexp.QuoteMeta(querySumSaldoPendiente)).
+	mock.ExpectQuery(regexp.QuoteMeta(querySumMontoTotal)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(5000.0))
 
@@ -443,7 +443,7 @@ func TestMesService_Balance_ErrorEnPasivos(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(querySumSuperavitAnterior)).
 		WithArgs(int64(1), "2026-08").
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
-	mock.ExpectQuery(regexp.QuoteMeta(querySumSaldoPendiente)).
+	mock.ExpectQuery(regexp.QuoteMeta(querySumMontoTotal)).
 		WithArgs(int64(1)).WillReturnError(errors.New("db caido"))
 
 	if _, _, err := svc.Balance(context.Background(), 1, 9); err == nil {

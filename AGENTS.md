@@ -10,7 +10,7 @@ Go 1.24 monolith: personal-finance web app. One binary serving a JSON API + serv
   - **Functional tests** (`cmd/server/integration_test.go`): exercise the full HTTP stack against a throwaway MySQL database (`finanzas_test_*`). They **auto-skip** if MySQL isn't reachable, so `go test ./...` still passes on a machine without a DB.
   - The router is built by `buildRouter` in `cmd/server/router.go`, shared by `main.go` and the integration tests.
 - Verify: `go vet ./... && go build ./...`
-- Env: copy `.env.example` to `.env`. Load it with `set -a; source .env; set +a` — NOT `export $(cat .env)` because the MySQL DSN contains `&` which the shell would mis-parse.
+- Env: keep secrets in `env.secrets` (gitignored, not in repo). Load it with `set -a; source env.secrets; set +a` — NOT `export $(cat env.secrets)` because the MySQL DSN contains `&` which the shell would mis-parse.
 - Commit hooks: `make git-hooks` (validates Conventional Commits via `.githooks/commit-msg`).
 
 ## Commits (Conventional Commits)
@@ -69,6 +69,7 @@ handler → service → repository → MySQL   (all via concrete types; model ho
 ## Auth / JWT
 
 - HS256, symmetric secret from `JWT_SECRET`. Claims: `sub` (userID), `exp`, `iat`. Never put sensitive data in claims (tokens are base64-readable, not encrypted).
+- `config.Load()` fails fast: `JWT_SECRET` and `DATABASE_URL` are mandatory (no defaults), `JWT_SECRET` must be ≥ 32 bytes and not a known placeholder, and `DATABASE_URL` must be a MySQL DSN (`@tcp(...)`). Integration tests build `config.Config` directly, bypassing `Load()`.
 - Session cookie `token` is `HttpOnly` + `SameSite=Lax`; middleware accepts token from Authorization header, `?token=` query, or cookie.
 - New protected routes go inside the `r.Group(func(r chi.Router) { r.Use(middleware.JWTAuth(...)) })` block in `main.go`.
 

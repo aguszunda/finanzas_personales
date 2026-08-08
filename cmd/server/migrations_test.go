@@ -171,7 +171,7 @@ var expectedColumns = map[string][]string{
 	"meses":         {"id", "usuario_id", "periodo", "estado", "ingresos_total", "egresos_total", "superavit", "tasa_ahorro", "ahorro_acumulado", "pasivos_total", "patrimonio", "created_at"},
 	"transacciones": {"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"},
 	"costos_fijos":  {"id", "usuario_id", "categoria_id", "descripcion", "monto_estimado", "dia_vencimiento", "activo", "tipo_periodo", "created_at"},
-	"deudas":        {"id", "usuario_id", "tipo", "entidad", "descripcion", "monto_total", "saldo_pendiente", "tasa_interes", "proximo_vencimiento", "created_at", "updated_at"},
+	"deudas":        {"id", "usuario_id", "tipo", "entidad", "descripcion", "monto_total", "proximo_vencimiento", "created_at", "updated_at"},
 }
 
 func TestMigrations_FreshSchemaDesdeArchivos(t *testing.T) {

@@ -319,6 +319,33 @@ uid := middleware.UserIDFromContext(r.Context())
 | Token viejo / robado | Expira por `exp` (72 hs) |
 | Adivinar el secreto | `JWT_SECRET` largo y aleatorio en producción |
 
+#### Generar / rotar el `JWT_SECRET`
+
+La app exige al arrancar que `JWT_SECRET` tenga **al menos 32 caracteres** y que
+**no** sea un valor conocido (los placeholders tipo `secret-super-seguro-cambiar-en-produccion`
+o `test-secret` se rechazan con fail-fast). No hay default.
+
+Para generarlo (64 bytes aleatorios):
+
+```bash
+openssl rand -base64 48
+```
+
+- **Local** (`env.secrets`, gitignored) — reemplaza la línea sin dejar el valor en el historial:
+  ```bash
+  NEW="$(openssl rand -base64 48)" && sed -i '' "s|^JWT_SECRET=.*|JWT_SECRET=${NEW}|" env.secrets
+  # después: docker compose --env-file env.secrets up -d --force-recreate app
+  ```
+  Recordá que el DSN de MySQL contiene `&`; cargalo con `set -a; source env.secrets; set +a`, nunca con `export $(cat env.secrets)`.
+- **Producción**: inyectalo como *secret* del entorno (secret manager, Vault, secreto de k8s...). **Nunca** en un archivo versionado ni embebido en la imagen Docker:
+  ```bash
+  export JWT_SECRET="$(openssl rand -base64 48)"
+  ```
+
+> ⚠️ Rotación: al cambiar `JWT_SECRET`, todas las firmas dejan de coincidir → **todos los tokens
+> emitidos se invalidan** (los usuarios pierden la sesión). Planearlo como un cambio con
+> ventana de mantenimiento, no como algo silencioso en caliente.
+
 > ⚠️ El token **no está cifrado**: viaja legible en Base64. Por eso NUNCA debe llevar
 > datos sensibles (contraseñas, email, etc.), solo el `sub`. Y por eso la cookie se crea
 > con `HttpOnly: true` (ver `auth_handler.go:setAuthCookie`): JavaScript no puede leerla,
@@ -566,8 +593,9 @@ decide cómo exponerlos. Eso mantiene la lógica de negocio desacoplada de la we
 ### 13.1 Cómo correr el proyecto
 
 ```bash
-cp .env.example .env          # configurar DATABASE_URL, JWT_SECRET...
-set -a; source .env; set +a   # cargar variables (importante: el DSN tiene "&")
+# env.secrets (gitignored, no está en el repo) debe tener un JWT_SECRET real:
+#   NEW="$(openssl rand -base64 48)" && sed -i '' "s|^JWT_SECRET=.*|JWT_SECRET=${NEW}|" env.secrets
+set -a; source env.secrets; set +a  # cargar secretos locales (DATABASE_URL, JWT_SECRET...)
 make db-init                  # crea la base (si falta) y aplica migrations/*.up.sql
 make run                      # compila y corre en :8080 (la app NO migra sola)
 ```
@@ -613,7 +641,7 @@ go vet ./...   # análisis estático
 | Si querés tocar... | Archivo(s) |
 |--------------------|-----------|
 | Rutas y arranque | `cmd/server/main.go` |
-| Variables de entorno | `internal/config/config.go`, `.env` |
+| Variables de entorno | `internal/config/config.go`, `env.secrets` |
 | Login / registro / JWT | `internal/service/auth_service.go`, `internal/handler/auth_handler.go`, `internal/middleware/auth.go` |
 | Crear/editar transacciones | `transaccion_handler.go`, `transaccion_service.go`, `transaccion_repo.go` |
 | Costos fijos | `costofijo_handler.go`, `costofijo_service.go`, `costofijo_repo.go` |

@@ -1,0 +1,3 @@
+ALTER TABLE deudas
+    ADD COLUMN saldo_pendiente DECIMAL(15,2) NOT NULL DEFAULT 0,
+    ADD COLUMN tasa_interes DECIMAL(6,2) DEFAULT 0;

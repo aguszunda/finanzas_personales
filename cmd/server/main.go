@@ -18,9 +18,13 @@ import (
 //go:generate go run github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3 -source file://migrations -database "mysql://$DATABASE_URL" up
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
+	if err != nil {
+		slog.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
