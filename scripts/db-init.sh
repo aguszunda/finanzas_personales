@@ -8,7 +8,7 @@
 # (o `make migrate-up`) es el único camino para crear/esquematizar la base.
 #
 # Uso:
-#   ./scripts/db-init.sh                 # usa DATABASE_URL de .env
+#   ./scripts/db-init.sh                 # usa DATABASE_URL de env.secrets
 #   DATABASE_URL="..." ./scripts/db-init.sh
 #   MYSQL_USER=... MYSQL_PASSWORD=... MYSQL_DATABASE=... ./scripts/db-init.sh
 #
@@ -29,9 +29,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env"
+ENV_FILE="$ROOT_DIR/env.secrets"
 
-# Cargar .env si existe. Se usa `set -a; source` (NO `export $(cat .env)`)
+# Cargar env.secrets si existe. Se usa `set -a; source` (NO `export $(cat env.secrets)`)
 # porque el DSN contiene `&` que el shell interpretaría como background.
 if [[ -f "$ENV_FILE" ]]; then
   set -a
@@ -55,7 +55,7 @@ if [[ "$USE_MYSQL_VARS" == "1" ]]; then
   MIGRATE_DSN="${DB_USER}:${DB_PASSWORD}@tcp(${DB_HOST}:${DB_PORT})/${DB_NAME}?parseTime=true&multiStatements=true&charset=utf8mb4&loc=Local"
 else
   [[ -n "${DATABASE_URL:-}" ]] || {
-    echo "error: definí DATABASE_URL en .env o las variables MYSQL_*" >&2
+    echo "error: definí DATABASE_URL en env.secrets o las variables MYSQL_*" >&2
     exit 1
   }
   MIGRATE_DSN="$DATABASE_URL"

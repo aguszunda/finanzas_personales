@@ -14,10 +14,12 @@
 #   docker compose down            # detener (conserva el volumen de la base)
 #   docker compose down -v         # detener y borrar datos de la base
 #
-# Variables configurables desde .env (ver .env.example):
+# Variables configurables desde env.secrets (gitignored, no en el repo).
+# Se cargan con `docker compose --env-file env.secrets ...` (ver Makefile):
 #   MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD,
 #   PORT, JWT_SECRET, JWT_EXPIRATION_HOURS, CORS_ORIGIN, LOG_LEVEL.
-# Todas tienen defaults de desarrollo.
+# JWT_SECRET es obligatorio (sin default): sin él la app no arranca.
+# Los `:-default` inline son solo fallbacks de dev para que funcione sin archivo.
 
 name: finanzas
 
@@ -69,7 +71,7 @@ services:
     environment:
       PORT: ${PORT:-8080}
       DATABASE_URL: '${MYSQL_USER:-finanzas}:${MYSQL_PASSWORD:-finanzas}@tcp(db:3306)/${MYSQL_DATABASE:-finanzas}?parseTime=true&multiStatements=true&charset=utf8mb4&loc=Local'
-      JWT_SECRET: ${JWT_SECRET:-reemplazar-con-secreto-seguro-en-produccion}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET debe estar definido en env.secrets}
       JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-72}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       LOG_LEVEL: ${LOG_LEVEL:-info}

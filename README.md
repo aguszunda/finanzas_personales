@@ -77,7 +77,7 @@ Administracion_financiera/
 ├── docker-compose.yml           # MySQL + migrate + app
 ├── Makefile
 ├── go.mod / go.sum
-└── .env.example
+└── env.secrets               # secretos locales (gitignored, no en el repo)
 ```
 
 ---
@@ -195,15 +195,19 @@ El proyecto usa la misma instancia local de MySQL. Para ver y explorar los datos
 3. Click **Test Connection** → **OK** → doble click en la conexión para abrirla.
 4. En el panel izquierdo (*SCHEMAS*) aparece el esquema `finanzas`. Las tablas (`usuarios`, `categorias`, `meses`, `transacciones`, `costos_fijos`, `deudas`) se crean con `make db-init`.
 
-> Si configuraste una contraseña para `root` (o usás otro usuario), los datos de la conexión tienen que coincidir con el `DATABASE_URL` de tu `.env`.
+> Si configuraste una contraseña para `root` (o usás otro usuario), los datos de la conexión tienen que coincidir con el `DATABASE_URL` de tu `env.secrets`.
 
 ### 2) Configuración
 ```bash
-cp .env.example .env
-# editar DATABASE_URL si usás otro usuario/contraseña (formato DSN: user:pass@tcp(host:port)/db?params)
-set -a; source .env; set +a
+# env.secrets es el archivo de secretos local (gitignored, no está en el repo).
+# Creamos una vez con DATABASE_URL y JWT_SECRET, ej:
+#   DATABASE_URL="root:@tcp(127.0.0.1:3306)/finanzas?parseTime=true&multiStatements=true&charset=utf8mb4&loc=Local"
+#   JWT_SECRET="$(openssl rand -base64 48)"
+set -a; source env.secrets; set +a
 ```
-> Usá `source .env` (no `export $(...)`) porque el DSN de MySQL contiene `&` que el shell interpretaría.
+> Usá `source env.secrets` (no `export $(...)`) porque el DSN de MySQL contiene `&` que el shell interpretaría.
+>
+> `JWT_SECRET` y `DATABASE_URL` son obligatorios: la app no arranca si faltan o si `JWT_SECRET` es un valor conocido (placeholder).
 
 ### 3) Correr
 ```bash
@@ -216,13 +220,13 @@ make run        # o: go run ./cmd/server
 **Opción A — Stack completo con Docker Compose** (MySQL + migraciones + app, recomendado):
 
 ```bash
-make docker-up       # = docker compose up -d --build
+make docker-up       # = docker compose --env-file env.secrets up -d --build
 # App en http://localhost:8080  ·  MySQL interno en la red de compose
 docker compose logs -f app
 make docker-down     # detener (conserva los datos en el volumen db_data)
 ```
 
-La base `finanzas` se crea sola con `utf8mb4_unicode_ci` (variables `MYSQL_*` en `.env`). Un servicio `migrate` aplica `migrations/*.up.sql` antes de que arranque la app. El puerto de MySQL no se publica en el host por defecto; descomentá `ports` en `docker-compose.yml` si querés conectarte desde Workbench.
+La base `finanzas` se crea sola con `utf8mb4_unicode_ci` (variables `MYSQL_*` en `env.secrets`). Un servicio `migrate` aplica `migrations/*.up.sql` antes de que arranque la app. El puerto de MySQL no se publica en el host por defecto; descomentá `ports` en `docker-compose.yml` si querés conectarte desde Workbench.
 
 **Opción B — Sólo la imagen:**
 ```bash
