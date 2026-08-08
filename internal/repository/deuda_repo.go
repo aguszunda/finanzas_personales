@@ -19,9 +19,9 @@ func NewDeudaRepo(db *sql.DB) *DeudaRepo {
 
 func (r *DeudaRepo) Create(ctx context.Context, d *model.Deuda) error {
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO deudas (usuario_id, tipo, entidad, descripcion, monto_total, saldo_pendiente, tasa_interes, proximo_vencimiento)
-		 VALUES (?,?,?,?,?,?,?,?)`,
-		d.UsuarioID, d.Tipo, d.Entidad, d.Descripcion, d.MontoTotal, d.SaldoPendiente, d.TasaInteres, nullString(d.ProximoVencimiento),
+		`INSERT INTO deudas (usuario_id, tipo, entidad, descripcion, monto_total, proximo_vencimiento)
+		 VALUES (?,?,?,?,?,?)`,
+		d.UsuarioID, d.Tipo, d.Entidad, d.Descripcion, d.MontoTotal, nullString(d.ProximoVencimiento),
 	)
 	if err != nil {
 		return err
@@ -39,9 +39,9 @@ func (r *DeudaRepo) FindByID(ctx context.Context, id, usuarioID int64) (*model.D
 	d := &model.Deuda{}
 	var venc sql.NullString
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, usuario_id, tipo, entidad, descripcion, monto_total, saldo_pendiente, tasa_interes, proximo_vencimiento, created_at
+		`SELECT id, usuario_id, tipo, entidad, descripcion, monto_total, proximo_vencimiento, created_at
 		 FROM deudas WHERE id = ? AND usuario_id = ?`, id, usuarioID,
-	).Scan(&d.ID, &d.UsuarioID, &d.Tipo, &d.Entidad, &d.Descripcion, &d.MontoTotal, &d.SaldoPendiente, &d.TasaInteres, &venc, &d.CreatedAt)
+	).Scan(&d.ID, &d.UsuarioID, &d.Tipo, &d.Entidad, &d.Descripcion, &d.MontoTotal, &venc, &d.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrNotFound
@@ -54,7 +54,7 @@ func (r *DeudaRepo) FindByID(ctx context.Context, id, usuarioID int64) (*model.D
 
 func (r *DeudaRepo) FindByUsuarioID(ctx context.Context, usuarioID int64) ([]model.Deuda, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, usuario_id, tipo, entidad, descripcion, monto_total, saldo_pendiente, tasa_interes, proximo_vencimiento, created_at
+		`SELECT id, usuario_id, tipo, entidad, descripcion, monto_total, proximo_vencimiento, created_at
 		 FROM deudas WHERE usuario_id = ?
 		 ORDER BY created_at DESC`, usuarioID)
 	if err != nil {
@@ -66,9 +66,9 @@ func (r *DeudaRepo) FindByUsuarioID(ctx context.Context, usuarioID int64) ([]mod
 
 func (r *DeudaRepo) Update(ctx context.Context, d *model.Deuda) error {
 	tag, err := r.db.ExecContext(ctx,
-		`UPDATE deudas SET tipo=?, entidad=?, descripcion=?, monto_total=?, saldo_pendiente=?, tasa_interes=?, proximo_vencimiento=?
+		`UPDATE deudas SET tipo=?, entidad=?, descripcion=?, monto_total=?, proximo_vencimiento=?
 		 WHERE id=? AND usuario_id=?`,
-		d.Tipo, d.Entidad, d.Descripcion, d.MontoTotal, d.SaldoPendiente, d.TasaInteres, nullString(d.ProximoVencimiento), d.ID, d.UsuarioID)
+		d.Tipo, d.Entidad, d.Descripcion, d.MontoTotal, nullString(d.ProximoVencimiento), d.ID, d.UsuarioID)
 	if err != nil {
 		return err
 	}
@@ -98,12 +98,12 @@ func (r *DeudaRepo) Delete(ctx context.Context, id, usuarioID int64) error {
 	return nil
 }
 
-// SumSaldoPendiente devuelve el total de pasivos del usuario: la suma de los
-// saldos pendientes de todas sus deudas.
-func (r *DeudaRepo) SumSaldoPendiente(ctx context.Context, usuarioID int64) (float64, error) {
+// SumMontoTotal devuelve el total de pasivos del usuario: la suma de los
+// montos totales de todas sus deudas.
+func (r *DeudaRepo) SumMontoTotal(ctx context.Context, usuarioID int64) (float64, error) {
 	var sum float64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT COALESCE(SUM(saldo_pendiente), 0) FROM deudas WHERE usuario_id = ?`,
+		`SELECT COALESCE(SUM(monto_total), 0) FROM deudas WHERE usuario_id = ?`,
 		usuarioID,
 	).Scan(&sum)
 	if err != nil {
@@ -117,7 +117,7 @@ func scanDeudas(rows *sql.Rows) ([]model.Deuda, error) {
 	for rows.Next() {
 		var d model.Deuda
 		var venc sql.NullString
-		if err := rows.Scan(&d.ID, &d.UsuarioID, &d.Tipo, &d.Entidad, &d.Descripcion, &d.MontoTotal, &d.SaldoPendiente, &d.TasaInteres, &venc, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.UsuarioID, &d.Tipo, &d.Entidad, &d.Descripcion, &d.MontoTotal, &venc, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		d.ProximoVencimiento = venc.String

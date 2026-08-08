@@ -94,8 +94,6 @@ type Deuda struct {
 	Entidad            string    `json:"entidad"`
 	Descripcion        string    `json:"descripcion"`
 	MontoTotal         float64   `json:"monto_total"`
-	SaldoPendiente     float64   `json:"saldo_pendiente"`
-	TasaInteres        float64   `json:"tasa_interes"`
 	ProximoVencimiento string    `json:"proximo_vencimiento"`
 	CreatedAt          time.Time `json:"created_at"`
 }

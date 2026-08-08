@@ -354,7 +354,7 @@ func TestDeudas_CRUD(t *testing.T) {
 	token, _ := registerJSON(t, env, "deuda@test.com")
 
 	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
-		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":500000,"saldo_pendiente":300000,"tasa_interes":25,"proximo_vencimiento":"2026-09-10"}`,
+		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":500000,"proximo_vencimiento":"2026-09-10"}`,
 		"application/json", false)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: expected 201, got %d (%s)", rec.Code, rec.Body.String())
@@ -378,23 +378,23 @@ func TestDeudas_CRUD(t *testing.T) {
 		t.Fatalf("get: expected 200, got %d", rec.Code)
 	}
 
-	// invalid create: saldo pendiente > monto total.
+	// invalid create: monto total no puede ser <= 0.
 	rec = doReq(t, env.router, http.MethodPost, "/api/deudas", token,
-		`{"tipo":"prestamo","entidad":"Banco","monto_total":100,"saldo_pendiente":200}`,
+		`{"tipo":"prestamo","entidad":"Banco","monto_total":0}`,
 		"application/json", false)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("invalid create: expected 400, got %d", rec.Code)
 	}
 
 	rec = doReq(t, env.router, http.MethodPut, fmt.Sprintf("/api/deudas/%d", id), token,
-		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":500000,"saldo_pendiente":250000,"tasa_interes":25}`,
+		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":450000,"proximo_vencimiento":"2026-09-10"}`,
 		"application/json", false)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("update: expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
 	json.Unmarshal(rec.Body.Bytes(), &deuda)
-	if deuda["saldo_pendiente"].(float64) != 250000 {
-		t.Errorf("update not applied: %v", deuda["saldo_pendiente"])
+	if deuda["monto_total"].(float64) != 450000 {
+		t.Errorf("update not applied: %v", deuda["monto_total"])
 	}
 
 	rec = doReq(t, env.router, http.MethodDelete, fmt.Sprintf("/api/deudas/%d", id), token, "", "", false)
@@ -409,7 +409,7 @@ func TestDeudas_CrossUserIsolation(t *testing.T) {
 	tokenB, _ := registerJSON(t, env, "deudaB@test.com")
 
 	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", tokenA,
-		`{"tipo":"prestamo","entidad":"Banco","monto_total":100000,"saldo_pendiente":50000}`,
+		`{"tipo":"prestamo","entidad":"Banco","monto_total":100000}`,
 		"application/json", false)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: expected 201, got %d", rec.Code)
@@ -434,7 +434,7 @@ func TestDeudas_FormCreate_HTMXAndPlainRedirects(t *testing.T) {
 
 	// HTMX: la página debe recargarse vía HX-Redirect.
 	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
-		"tipo=tarjeta_credito&entidad=Visa&descripcion=Tarjeta&monto_total=80000&saldo_pendiente=25000&tasa_interes=40",
+		"tipo=tarjeta_credito&entidad=Visa&descripcion=Tarjeta&monto_total=80000",
 		"application/x-www-form-urlencoded", true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("htmx create: expected 201, got %d (%s)", rec.Code, rec.Body.String())
@@ -445,7 +445,7 @@ func TestDeudas_FormCreate_HTMXAndPlainRedirects(t *testing.T) {
 
 	// Form plano (sin HTMX): 303 al listado.
 	rec = doReq(t, env.router, http.MethodPost, "/api/deudas", token,
-		"tipo=prestamo&entidad=Banco&monto_total=100000&saldo_pendiente=50000",
+		"tipo=prestamo&entidad=Banco&monto_total=100000",
 		"application/x-www-form-urlencoded", false)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("plain form create: expected 303, got %d (%s)", rec.Code, rec.Body.String())
@@ -460,7 +460,7 @@ func TestDeudas_PageConDatos(t *testing.T) {
 	token, _ := registerJSON(t, env, "deudapage@test.com")
 
 	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
-		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":500000,"saldo_pendiente":300000,"tasa_interes":25,"proximo_vencimiento":"2026-09-10"}`,
+		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":500000,"proximo_vencimiento":"2026-09-10"}`,
 		"application/json", false)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create deuda: expected 201, got %d (%s)", rec.Code, rec.Body.String())
@@ -471,7 +471,7 @@ func TestDeudas_PageConDatos(t *testing.T) {
 		t.Fatalf("deudas page: expected 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Banco Galicia") || !strings.Contains(body, "$ 300000.00") {
+	if !strings.Contains(body, "Banco Galicia") || !strings.Contains(body, "$ 500000.00") {
 		t.Errorf("deuda no visible en la página: %s", body)
 	}
 	if strings.Contains(body, "No hay deudas registradas") {
@@ -488,7 +488,7 @@ func TestBalance_AhorroAcumuladoYPasivos(t *testing.T) {
 	createTransaction(t, env, token, "egreso", 40000, dia)
 
 	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
-		`{"tipo":"tarjeta_credito","entidad":"Visa","monto_total":80000,"saldo_pendiente":25000}`,
+		`{"tipo":"tarjeta_credito","entidad":"Visa","monto_total":80000}`,
 		"application/json", false)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create deuda: expected 201, got %d", rec.Code)
@@ -503,12 +503,12 @@ func TestBalance_AhorroAcumuladoYPasivos(t *testing.T) {
 	if !strings.Contains(body, "Ahorro Acumulado") || !strings.Contains(body, "$ 60000.00") {
 		t.Errorf("ahorro acumulado no visible en balance: %s", body)
 	}
-	// Pasivos = suma de saldos de deudas (25000), visibles con su desglose.
-	if !strings.Contains(body, "Pasivos") || !strings.Contains(body, "$ 25000.00") || !strings.Contains(body, "Visa") {
+	// Pasivos = suma de montos totales de deudas (80000), visibles con su desglose.
+	if !strings.Contains(body, "Pasivos") || !strings.Contains(body, "$ 80000.00") || !strings.Contains(body, "Visa") {
 		t.Errorf("pasivos no visibles en balance: %s", body)
 	}
-	// Patrimonio = 60000 - 25000 = 35000.
-	if !strings.Contains(body, "$ 35000.00") {
+	// Patrimonio = 60000 - 80000 = -20000.
+	if !strings.Contains(body, "$ -20000.00") {
 		t.Errorf("patrimonio neto incorrecto en balance: %s", body)
 	}
 }
@@ -583,7 +583,7 @@ func TestMeses_CierreConDeudasYRecalcularCerrado(t *testing.T) {
 
 	createTransaction(t, env, token, "ingreso", 100000, dia)
 	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
-		`{"tipo":"prestamo","entidad":"Banco","monto_total":50000,"saldo_pendiente":30000}`,
+		`{"tipo":"prestamo","entidad":"Banco","monto_total":50000}`,
 		"application/json", false)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create deuda: expected 201, got %d (%s)", rec.Code, rec.Body.String())
@@ -606,7 +606,7 @@ func TestMeses_CierreConDeudasYRecalcularCerrado(t *testing.T) {
 	if mes["superavit"].(float64) != 100000 || mes["ahorro_acumulado"].(float64) != 100000 {
 		t.Errorf("unexpected superavit/ahorro: %v / %v", mes["superavit"], mes["ahorro_acumulado"])
 	}
-	if mes["pasivos_total"].(float64) != 30000 || mes["patrimonio"].(float64) != 70000 {
+	if mes["pasivos_total"].(float64) != 50000 || mes["patrimonio"].(float64) != 50000 {
 		t.Errorf("unexpected pasivos/patrimonio: %v / %v", mes["pasivos_total"], mes["patrimonio"])
 	}
 
@@ -622,7 +622,7 @@ func TestMeses_CierreConDeudasYRecalcularCerrado(t *testing.T) {
 		t.Fatalf("get closed month: expected 200, got %d", rec.Code)
 	}
 	json.Unmarshal(rec.Body.Bytes(), &mes)
-	if mes["ahorro_acumulado"].(float64) != 100000 || mes["pasivos_total"].(float64) != 30000 {
+	if mes["ahorro_acumulado"].(float64) != 100000 || mes["pasivos_total"].(float64) != 50000 {
 		t.Errorf("closed month persisted wrong acumulados: ahorro=%v pasivos=%v", mes["ahorro_acumulado"], mes["pasivos_total"])
 	}
 
@@ -964,8 +964,9 @@ func TestMigrations_UpgradeDesdeV1(t *testing.T) {
 	if err := db.QueryRow("SELECT MAX(version) FROM schema_migrations").Scan(&version); err != nil {
 		t.Fatalf("query version: %v", err)
 	}
-	if version != 2 {
-		t.Errorf("expected schema version 2 after upgrade, got %d", version)
+	wantVersion := int64(latestMigrationVersion(t))
+	if version != wantVersion {
+		t.Errorf("expected schema version %d after upgrade, got %d", wantVersion, version)
 	}
 }
 

@@ -15,7 +15,6 @@
                 <th>Entidad</th>
                 <th>Descripción</th>
                 <th>Monto Total</th>
-                <th>Saldo Pendiente</th>
                 <th>Próx. Venc.</th>
                 <th class="no-print">Acciones</th>
             </tr>
@@ -26,8 +25,7 @@
                 <td>{{if eq .Tipo "tarjeta_credito"}}💳 Tarjeta{{else if eq .Tipo "prestamo"}}🏦 Préstamo{{else if eq .Tipo "hipoteca"}}🏠 Hipoteca{{else if eq .Tipo "personal"}}👤 Personal{{else}}📄 Otro{{end}}</td>
                 <td>{{.Entidad}}</td>
                 <td>{{.Descripcion}}</td>
-                <td>$ {{printf "%.2f" .MontoTotal}}</td>
-                <td style="font-weight:600;color:var(--danger)">$ {{printf "%.2f" .SaldoPendiente}}</td>
+                <td style="font-weight:600;color:var(--danger)">$ {{printf "%.2f" .MontoTotal}}</td>
                 <td>{{.ProximoVencimiento}}</td>
                 <td class="no-print">
                     <button class="btn btn-outline btn-sm" onclick="editDeuda({{.ID}})">✏️</button>
@@ -35,7 +33,7 @@
                 </td>
             </tr>
             {{else}}
-            <tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--text-secondary)">No hay deudas registradas</td></tr>
+            <tr><td colspan="6" class="text-center" style="padding:2rem;color:var(--text-secondary)">No hay deudas registradas</td></tr>
             {{end}}
         </tbody>
     </table>
@@ -69,16 +67,6 @@
                 <div class="form-group">
                     <label>Monto Total</label>
                     <input type="number" name="monto_total" step="0.01" min="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label>Saldo Pendiente</label>
-                    <input type="number" name="saldo_pendiente" step="0.01" min="0" required>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Tasa de Interés (%)</label>
-                    <input type="number" name="tasa_interes" step="0.01" min="0" value="0">
                 </div>
                 <div class="form-group">
                     <label>Próximo Vencimiento</label>
@@ -124,8 +112,6 @@ function editDeuda(id) {
             form.querySelector('[name="entidad"]').value = d.entidad;
             form.querySelector('[name="descripcion"]').value = d.descripcion;
             form.querySelector('[name="monto_total"]').value = d.monto_total;
-            form.querySelector('[name="saldo_pendiente"]').value = d.saldo_pendiente;
-            form.querySelector('[name="tasa_interes"]').value = d.tasa_interes;
             form.querySelector('[name="proximo_vencimiento"]').value = d.proximo_vencimiento;
             document.getElementById('form-modal').style.display='flex';
         });

@@ -14,21 +14,21 @@ import (
 )
 
 const (
-	queryDeudaInsertRepo = `INSERT INTO deudas (usuario_id, tipo, entidad, descripcion, monto_total, saldo_pendiente, tasa_interes, proximo_vencimiento)
-		 VALUES (?,?,?,?,?,?,?,?)`
-	queryDeudaByIDRepo = `SELECT id, usuario_id, tipo, entidad, descripcion, monto_total, saldo_pendiente, tasa_interes, proximo_vencimiento, created_at
+	queryDeudaInsertRepo = `INSERT INTO deudas (usuario_id, tipo, entidad, descripcion, monto_total, proximo_vencimiento)
+		 VALUES (?,?,?,?,?,?)`
+	queryDeudaByIDRepo = `SELECT id, usuario_id, tipo, entidad, descripcion, monto_total, proximo_vencimiento, created_at
 		 FROM deudas WHERE id = ? AND usuario_id = ?`
-	queryDeudaListRepo = `SELECT id, usuario_id, tipo, entidad, descripcion, monto_total, saldo_pendiente, tasa_interes, proximo_vencimiento, created_at
+	queryDeudaListRepo = `SELECT id, usuario_id, tipo, entidad, descripcion, monto_total, proximo_vencimiento, created_at
 		 FROM deudas WHERE usuario_id = ?
 		 ORDER BY created_at DESC`
-	queryDeudaUpdateRepo = `UPDATE deudas SET tipo=?, entidad=?, descripcion=?, monto_total=?, saldo_pendiente=?, tasa_interes=?, proximo_vencimiento=?
+	queryDeudaUpdateRepo = `UPDATE deudas SET tipo=?, entidad=?, descripcion=?, monto_total=?, proximo_vencimiento=?
 		 WHERE id=? AND usuario_id=?`
 	queryDeudaDeleteRepo = `DELETE FROM deudas WHERE id=? AND usuario_id=?`
-	queryDeudaSumRepo    = `SELECT COALESCE(SUM(saldo_pendiente), 0) FROM deudas WHERE usuario_id = ?`
+	queryDeudaSumRepo    = `SELECT COALESCE(SUM(monto_total), 0) FROM deudas WHERE usuario_id = ?`
 )
 
 func deudaCols() []string {
-	return []string{"id", "usuario_id", "tipo", "entidad", "descripcion", "monto_total", "saldo_pendiente", "tasa_interes", "proximo_vencimiento", "created_at"}
+	return []string{"id", "usuario_id", "tipo", "entidad", "descripcion", "monto_total", "proximo_vencimiento", "created_at"}
 }
 
 func TestDeudaRepo_Create(t *testing.T) {
@@ -37,10 +37,10 @@ func TestDeudaRepo_Create(t *testing.T) {
 
 	// Sin vencimiento: la columna DATE recibe NULL.
 	mock.ExpectExec(regexp.QuoteMeta(queryDeudaInsertRepo)).
-		WithArgs(int64(1), "prestamo", "Banco", "Auto", 500000.0, 300000.0, 25.0, nil).
+		WithArgs(int64(1), "prestamo", "Banco", "Auto", 500000.0, nil).
 		WillReturnResult(sqlmock.NewResult(7, 1))
 
-	d := &model.Deuda{UsuarioID: 1, Tipo: "prestamo", Entidad: "Banco", Descripcion: "Auto", MontoTotal: 500000, SaldoPendiente: 300000, TasaInteres: 25}
+	d := &model.Deuda{UsuarioID: 1, Tipo: "prestamo", Entidad: "Banco", Descripcion: "Auto", MontoTotal: 500000}
 	if err := r.Create(context.Background(), d); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -50,9 +50,9 @@ func TestDeudaRepo_Create(t *testing.T) {
 
 	// Con vencimiento: se pasa el string.
 	mock.ExpectExec(regexp.QuoteMeta(queryDeudaInsertRepo)).
-		WithArgs(int64(1), "tarjeta_credito", "Visa", "", 80000.0, 25000.0, 40.0, "2026-09-05").
+		WithArgs(int64(1), "tarjeta_credito", "Visa", "", 80000.0, "2026-09-05").
 		WillReturnResult(sqlmock.NewResult(8, 1))
-	d2 := &model.Deuda{UsuarioID: 1, Tipo: "tarjeta_credito", Entidad: "Visa", MontoTotal: 80000, SaldoPendiente: 25000, TasaInteres: 40, ProximoVencimiento: "2026-09-05"}
+	d2 := &model.Deuda{UsuarioID: 1, Tipo: "tarjeta_credito", Entidad: "Visa", MontoTotal: 80000, ProximoVencimiento: "2026-09-05"}
 	if err := r.Create(context.Background(), d2); err != nil {
 		t.Fatalf("Create con vencimiento: %v", err)
 	}
@@ -69,13 +69,13 @@ func TestDeudaRepo_FindByID(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByIDRepo)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaCols()).
-			AddRow(7, 1, "prestamo", "Banco", "Auto", 500000.0, 300000.0, 25.0, "2026-09-10", created))
+			AddRow(7, 1, "prestamo", "Banco", "Auto", 500000.0, "2026-09-10", created))
 
 	d, err := r.FindByID(context.Background(), 7, 1)
 	if err != nil {
 		t.Fatalf("FindByID: %v", err)
 	}
-	if d.Entidad != "Banco" || d.SaldoPendiente != 300000 || d.ProximoVencimiento != "2026-09-10" {
+	if d.Entidad != "Banco" || d.MontoTotal != 500000 || d.ProximoVencimiento != "2026-09-10" {
 		t.Errorf("unexpected deuda: %+v", d)
 	}
 
@@ -83,7 +83,7 @@ func TestDeudaRepo_FindByID(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByIDRepo)).
 		WithArgs(int64(8), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaCols()).
-			AddRow(8, 1, "otro", "X", "", 100.0, 50.0, 0.0, nil, created))
+			AddRow(8, 1, "otro", "X", "", 100.0, nil, created))
 	d, err = r.FindByID(context.Background(), 8, 1)
 	if err != nil {
 		t.Fatalf("FindByID con vencimiento NULL: %v", err)
@@ -115,8 +115,8 @@ func TestDeudaRepo_FindByUsuarioID(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaListRepo)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaCols()).
-			AddRow(1, 1, "tarjeta_credito", "Visa", "", 200000.0, 80000.0, 40.0, "2026-09-05", created).
-			AddRow(2, 1, "prestamo", "Banco", "Auto", 500000.0, 300000.0, 25.0, nil, created))
+			AddRow(1, 1, "tarjeta_credito", "Visa", "", 200000.0, "2026-09-05", created).
+			AddRow(2, 1, "prestamo", "Banco", "Auto", 500000.0, nil, created))
 
 	list, err := r.FindByUsuarioID(context.Background(), 1)
 	if err != nil {
@@ -133,17 +133,17 @@ func TestDeudaRepo_FindByUsuarioID(t *testing.T) {
 func TestDeudaRepo_Update(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewDeudaRepo(db)
-	d := &model.Deuda{ID: 7, UsuarioID: 1, Tipo: "prestamo", Entidad: "Banco", Descripcion: "Auto", MontoTotal: 500000, SaldoPendiente: 250000, TasaInteres: 25}
+	d := &model.Deuda{ID: 7, UsuarioID: 1, Tipo: "prestamo", Entidad: "Banco", Descripcion: "Auto", MontoTotal: 500000}
 
 	mock.ExpectExec(regexp.QuoteMeta(queryDeudaUpdateRepo)).
-		WithArgs("prestamo", "Banco", "Auto", 500000.0, 250000.0, 25.0, nil, int64(7), int64(1)).
+		WithArgs("prestamo", "Banco", "Auto", 500000.0, nil, int64(7), int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := r.Update(context.Background(), d); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 
 	mock.ExpectExec(regexp.QuoteMeta(queryDeudaUpdateRepo)).
-		WithArgs("prestamo", "Banco", "Auto", 500000.0, 250000.0, 25.0, nil, int64(7), int64(1)).
+		WithArgs("prestamo", "Banco", "Auto", 500000.0, nil, int64(7), int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := r.Update(context.Background(), d); !errors.Is(err, model.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -173,16 +173,16 @@ func TestDeudaRepo_Delete(t *testing.T) {
 	}
 }
 
-func TestDeudaRepo_SumSaldoPendiente(t *testing.T) {
+func TestDeudaRepo_SumMontoTotal(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewDeudaRepo(db)
 
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaSumRepo)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(380000.0))
-	sum, err := r.SumSaldoPendiente(context.Background(), 1)
+	sum, err := r.SumMontoTotal(context.Background(), 1)
 	if err != nil {
-		t.Fatalf("SumSaldoPendiente: %v", err)
+		t.Fatalf("SumMontoTotal: %v", err)
 	}
 	if sum != 380000 {
 		t.Errorf("expected 380000, got %v", sum)
@@ -192,9 +192,9 @@ func TestDeudaRepo_SumSaldoPendiente(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaSumRepo)).
 		WithArgs(int64(2)).
 		WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(0.0))
-	sum, err = r.SumSaldoPendiente(context.Background(), 2)
+	sum, err = r.SumMontoTotal(context.Background(), 2)
 	if err != nil {
-		t.Fatalf("SumSaldoPendiente vacío: %v", err)
+		t.Fatalf("SumMontoTotal vacío: %v", err)
 	}
 	if sum != 0 {
 		t.Errorf("expected 0, got %v", sum)

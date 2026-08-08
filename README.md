@@ -153,9 +153,11 @@ RequestID → Recoverer → Logging → CORS → DetectHTMX → Timeout
 - `Register()` / `Login()`: hash bcrypt + emisión de JWT (HS256) con `sub = userID`.
 
 ### `internal/service/deuda_service.go`
-- `Create()`: valida entidad, monto total > 0 y `saldo_pendiente` en `[0, monto_total]`; tipo por defecto `otro`
+- `Create()`: valida entidad no vacía y monto total > 0; tipo por defecto `otro`
   (tipos válidos: `tarjeta_credito`, `prestamo`, `hipoteca`, `personal`, `otro`).
 - `Update()`/`Delete()`: operan sobre deudas del usuario autenticado (tenancy por `usuario_id`).
+- El total de pasivos se calcula como la suma de los `monto_total` de las deudas (`SUM(monto_total)`)
+  y alimenta `pasivos_total` en el cierre/recalculo de mes.
 
 ### `internal/handler/helpers.go`
 - `handleServiceError()`: traduce errores de dominio (`ErrNotFound`, `ErrMesCerrado`, …) a códigos HTTP.
@@ -331,7 +333,7 @@ curl -s -X DELETE http://localhost:8080/api/costos-fijos/1 -H "Authorization: Be
 # Crear
 curl -s -X POST http://localhost:8080/api/deudas \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Cuota notebook","monto_total":300000,"saldo_pendiente":180000,"tasa_interes":42.5,"proximo_vencimiento":"2026-08-15"}'
+  -d '{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Cuota notebook","monto_total":300000,"proximo_vencimiento":"2026-08-15"}'
 
 # Listar
 curl -s http://localhost:8080/api/deudas -H "Authorization: Bearer $TOKEN" | jq
@@ -339,10 +341,10 @@ curl -s http://localhost:8080/api/deudas -H "Authorization: Bearer $TOKEN" | jq
 # Ver una
 curl -s http://localhost:8080/api/deudas/1 -H "Authorization: Bearer $TOKEN" | jq
 
-# Editar (ej: actualizar saldo pendiente)
+# Editar (ej: actualizar el monto total)
 curl -s -X PUT http://localhost:8080/api/deudas/1 \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Cuota notebook","monto_total":300000,"saldo_pendiente":120000,"tasa_interes":42.5,"proximo_vencimiento":"2026-08-15"}'
+  -d '{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Cuota notebook","monto_total":260000,"proximo_vencimiento":"2026-08-15"}'
 
 # Eliminar
 curl -s -X DELETE http://localhost:8080/api/deudas/1 -H "Authorization: Bearer $TOKEN" -w "%{http_code}"
@@ -403,7 +405,7 @@ transacciones(id, usuario_id, tipo, monto, fecha, categoria_id, descripcion,
 costos_fijos(id, usuario_id, categoria_id, descripcion, monto_estimado,
       dia_vencimiento[1-31], activo, tipo_periodo[mensual|bimestral|anual], created_at)
 deudas(id, usuario_id, tipo[tarjeta_credito|prestamo|hipoteca|personal|otro], entidad,
-      descripcion, monto_total, saldo_pendiente, tasa_interes, proximo_vencimiento, created_at, updated_at)
+      descripcion, monto_total, proximo_vencimiento, created_at, updated_at)
 ```
 
 Categorías por defecto (seed): Sueldo 💰, Freelance 💻, Ventas 📦, Otros Ingresos 📥,
