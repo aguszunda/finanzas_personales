@@ -699,6 +699,65 @@ func TestPages_Render(t *testing.T) {
 	}
 }
 
+func TestFormFragments_Render(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "frags@test.com")
+
+	created := createTransaction(t, env, token, "egreso", 45000, "2026-08-01")
+	tID := int64(created["id"].(float64))
+	deudaRec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"prestamo","entidad":"Banco Galicia","descripcion":"Auto","monto_total":500000,"proximo_vencimiento":"2026-09-10"}`,
+		"application/json", false)
+	var deuda map[string]interface{}
+	json.Unmarshal(deudaRec.Body.Bytes(), &deuda)
+	dID := int64(deuda["id"].(float64))
+
+	type tc struct {
+		path    string
+		want    []string
+		missing []string
+	}
+	tests := []tc{
+		{"/api/transacciones/form", []string{"Nueva Transacción", `hx-post="/api/transacciones"`}, []string{`hx-put`}},
+		{fmt.Sprintf("/api/transacciones/form?edit_id=%d", tID), []string{"Editar Transacción", fmt.Sprintf(`hx-put="/api/transacciones/%d"`, tID), `value="test egreso"`}, []string{`hx-post`}},
+		{"/api/deudas/form", []string{"Nueva Deuda", `hx-post="/api/deudas"`}, []string{`hx-put`}},
+		{fmt.Sprintf("/api/deudas/form?edit_id=%d", dID), []string{"Editar Deuda", fmt.Sprintf(`hx-put="/api/deudas/%d"`, dID), `value="Banco Galicia"`}, []string{`hx-post`}},
+	}
+	for _, tt := range tests {
+		rec := doReq(t, env.router, http.MethodGet, tt.path, token, "", "", false)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: expected 200, got %d", tt.path, rec.Code)
+			continue
+		}
+		if ct := rec.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
+			t.Errorf("%s: unexpected Content-Type %q", tt.path, ct)
+		}
+		body := rec.Body.String()
+		for _, m := range tt.want {
+			if !strings.Contains(body, m) {
+				t.Errorf("%s: marker %q not found", tt.path, m)
+			}
+		}
+		for _, m := range tt.missing {
+			if strings.Contains(body, m) {
+				t.Errorf("%s: unexpected marker %q found", tt.path, m)
+			}
+		}
+	}
+
+	// Sin editar con edit_id=0 se comporta como modo "nueva".
+	rec := doReq(t, env.router, http.MethodGet, "/api/transacciones/form?edit_id=0", token, "", "", false)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Nueva Transacción") {
+		t.Errorf("edit_id=0 debe renderizar modo nueva, got %d", rec.Code)
+	}
+
+	// edit_id inexistente -> 404.
+	rec = doReq(t, env.router, http.MethodGet, "/api/transacciones/form?edit_id=999999", token, "", "", false)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("edit_id inexistente: expected 404, got %d", rec.Code)
+	}
+}
+
 func TestCostosFijos_GetUpdate(t *testing.T) {
 	env := newTestEnv(t)
 	token, _ := registerJSON(t, env, "cfget@test.com")

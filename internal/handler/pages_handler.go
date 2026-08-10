@@ -126,3 +126,36 @@ func (h *PagesHandler) DeudasPage(w http.ResponseWriter, r *http.Request) {
 	}
 	renderTemplate(w, "deudas", map[string]interface{}{"deudas": deudas})
 }
+
+// TransaccionForm renderiza el partial del formulario de transacción. Sin
+// edit_id devuelve el modo "nueva" (hx-post); con edit_id precarga la
+// transacción y responde con hx-put. El verbo y los valores vienen del
+// servidor para que HTMX procese los atributos al recibir el fragmento.
+func (h *PagesHandler) TransaccionForm(w http.ResponseWriter, r *http.Request) {
+	uid := middleware.UserIDFromContext(r.Context())
+	cats, _ := h.catRepo.FindAll(r.Context(), uid)
+	data := map[string]interface{}{"categorias": cats}
+	if editID, err := strconv.ParseInt(r.URL.Query().Get("edit_id"), 10, 64); err == nil && editID > 0 {
+		t, err := h.transSvc.GetByID(r.Context(), editID, uid)
+		if err != nil {
+			handleServiceError(w, err)
+			return
+		}
+		data["transaccion"] = t
+	}
+	renderTemplateFragment(w, "transaccion_form", data)
+}
+
+func (h *PagesHandler) DeudaForm(w http.ResponseWriter, r *http.Request) {
+	uid := middleware.UserIDFromContext(r.Context())
+	data := map[string]interface{}{}
+	if editID, err := strconv.ParseInt(r.URL.Query().Get("edit_id"), 10, 64); err == nil && editID > 0 {
+		d, err := h.deudaSvc.GetByID(r.Context(), editID, uid)
+		if err != nil {
+			handleServiceError(w, err)
+			return
+		}
+		data["deuda"] = d
+	}
+	renderTemplateFragment(w, "deuda_form", data)
+}

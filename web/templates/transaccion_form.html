@@ -1,0 +1,50 @@
+{{define "transaccion_form"}}
+<h2 id="form-modal-title">{{if .transaccion}}Editar Transacción{{else}}Nueva Transacción{{end}}</h2>
+<form {{if .transaccion}}hx-put="/api/transacciones/{{.transaccion.ID}}"{{else}}hx-post="/api/transacciones"{{end}} hx-swap="none" method="post" action="/api/transacciones">
+    <div class="form-group">
+        <label>Tipo</label>
+        <select name="tipo" required>
+            <option value="ingreso" {{if and .transaccion (eq .transaccion.Tipo "ingreso")}}selected{{end}}>💰 Ingreso</option>
+            <option value="egreso" {{if and .transaccion (eq .transaccion.Tipo "egreso")}}selected{{end}}>💸 Egreso</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Monto</label>
+        <input type="number" name="monto" step="0.01" min="0.01" required {{if .transaccion}}value="{{.transaccion.Monto}}"{{end}}>
+    </div>
+    <div class="form-group">
+        <label>Fecha</label>
+        <input type="date" name="fecha" required {{if .transaccion}}value="{{.transaccion.Fecha}}"{{end}}>
+    </div>
+    <div class="form-group">
+        <label>Categoría</label>
+        <select name="categoria_id" required>
+            {{range .categorias}}
+            <option value="{{.ID}}" {{if and $.transaccion (eq $.transaccion.CategoriaID .ID)}}selected{{end}}>{{.Icono}} {{.Nombre}}</option>
+            {{end}}
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Descripción</label>
+        <input type="text" name="descripcion" {{if .transaccion}}value="{{.transaccion.Descripcion}}"{{end}}>
+    </div>
+    <div class="form-group">
+        <label>Medio de Pago</label>
+        <select name="medio_pago">
+            <option value="">Seleccionar</option>
+            <option value="efectivo" {{if and .transaccion (eq .transaccion.MedioPago "efectivo")}}selected{{end}}>Efectivo</option>
+            <option value="debito" {{if and .transaccion (eq .transaccion.MedioPago "debito")}}selected{{end}}>Débito</option>
+            <option value="credito" {{if and .transaccion (eq .transaccion.MedioPago "credito")}}selected{{end}}>Crédito</option>
+            <option value="transferencia" {{if and .transaccion (eq .transaccion.MedioPago "transferencia")}}selected{{end}}>Transferencia</option>
+        </select>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem">
+        <input type="checkbox" name="es_fijo" id="es_fijo" value="true" {{if and .transaccion .transaccion.EsFijo}}checked{{end}}>
+        <label for="es_fijo" style="margin:0">Es costo fijo</label>
+    </div>
+    <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('form-modal').style.display='none'">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+    </div>
+</form>
+{{end}}
