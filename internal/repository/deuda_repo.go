@@ -37,7 +37,7 @@ func (r *DeudaRepo) Create(ctx context.Context, d *model.Deuda) error {
 
 func (r *DeudaRepo) FindByID(ctx context.Context, id, usuarioID int64) (*model.Deuda, error) {
 	d := &model.Deuda{}
-	var venc sql.NullString
+	var venc sql.NullTime
 	var cat sql.NullInt64
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, usuario_id, tipo, entidad, descripcion, monto_total, categoria_id, medio_pago, proximo_vencimiento, estado, created_at
@@ -50,7 +50,7 @@ func (r *DeudaRepo) FindByID(ctx context.Context, id, usuarioID int64) (*model.D
 		return nil, err
 	}
 	d.CategoriaID = cat.Int64
-	d.ProximoVencimiento = venc.String
+	d.ProximoVencimiento = formatFecha(venc)
 	return d, nil
 }
 
@@ -153,13 +153,13 @@ func scanDeudas(rows *sql.Rows) ([]model.Deuda, error) {
 	var ds []model.Deuda
 	for rows.Next() {
 		var d model.Deuda
-		var venc sql.NullString
+		var venc sql.NullTime
 		var cat sql.NullInt64
 		if err := rows.Scan(&d.ID, &d.UsuarioID, &d.Tipo, &d.Entidad, &d.Descripcion, &d.MontoTotal, &cat, &d.MedioPago, &venc, &d.Estado, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		d.CategoriaID = cat.Int64
-		d.ProximoVencimiento = venc.String
+		d.ProximoVencimiento = formatFecha(venc)
 		ds = append(ds, d)
 	}
 	return ds, rows.Err()
@@ -171,6 +171,14 @@ func nullString(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+// formatFecha devuelve una fecha DATE en formato YYYY-MM-DD, o "" si es nula.
+func formatFecha(t sql.NullTime) string {
+	if !t.Valid {
+		return ""
+	}
+	return t.Time.Format("2006-01-02")
 }
 
 // nullInt64 convierte 0 en NULL para columnas opcionales de tipo id.

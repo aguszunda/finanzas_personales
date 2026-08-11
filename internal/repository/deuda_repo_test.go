@@ -74,7 +74,7 @@ func TestDeudaRepo_FindByID(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByIDRepo)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaCols()).
-			AddRow(7, 1, "prestamo", "Banco", "Auto", 500000.0, 7, "transferencia", "2026-09-10", "pendiente", created))
+			AddRow(7, 1, "prestamo", "Banco", "Auto", 500000.0, 7, "transferencia", time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC), "pendiente", created))
 
 	d, err := r.FindByID(context.Background(), 7, 1)
 	if err != nil {
@@ -123,7 +123,7 @@ func TestDeudaRepo_FindByUsuarioID(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaListRepo)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaCols()).
-			AddRow(1, 1, "tarjeta_credito", "Visa", "", 200000.0, 7, "", "2026-09-05", "pendiente", created).
+			AddRow(1, 1, "tarjeta_credito", "Visa", "", 200000.0, 7, "", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pendiente", created).
 			AddRow(2, 1, "prestamo", "Banco", "Auto", 500000.0, 5, "debito", nil, "pendiente", created))
 
 	list, err := r.FindByUsuarioID(context.Background(), 1)
@@ -217,7 +217,7 @@ func TestDeudaRepo_FindByRango(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaRangoRepo)).
 		WithArgs(int64(1), "2026-08-01", "2026-08-31").
 		WillReturnRows(sqlmock.NewRows(deudaCols()).
-			AddRow(1, 1, "tarjeta_credito", "Visa", "", 200000.0, 7, "", "2026-09-05", "pendiente", created))
+			AddRow(1, 1, "tarjeta_credito", "Visa", "", 200000.0, 7, "", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pendiente", created))
 
 	list, err := r.FindByRango(context.Background(), 1, "2026-08-01", "2026-08-31")
 	if err != nil {

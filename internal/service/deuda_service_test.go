@@ -183,7 +183,7 @@ func TestDeudaService_GetByID_Success(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByID)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaSvcCols()).
-			AddRow(7, 1, "prestamo", "Banco", "Auto", 500000.0, 5, "debito", "2026-09-10", "pendiente", created))
+			AddRow(7, 1, "prestamo", "Banco", "Auto", 500000.0, 5, "debito", time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC), "pendiente", created))
 
 	d, err := svc.GetByID(context.Background(), 7, 1)
 	if err != nil {
@@ -236,7 +236,7 @@ func TestDeudaService_List(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaList)).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaSvcCols()).
-			AddRow(1, 1, "tarjeta_credito", "Visa", "", 200000.0, 7, "", "2026-09-05", "pendiente", created).
+			AddRow(1, 1, "tarjeta_credito", "Visa", "", 200000.0, 7, "", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pendiente", created).
 			AddRow(2, 1, "prestamo", "Banco", "Auto", 500000.0, 5, "debito", nil, "pendiente", created))
 
 	list, err := svc.List(context.Background(), 1)
@@ -259,7 +259,7 @@ func TestDeudaService_MarcarPagada_Success(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByID)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaSvcCols()).
-			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "transferencia", "2026-09-05", "pendiente", created))
+			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "transferencia", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pendiente", created))
 
 	// 2) Valida que la categoría 7 ("Comida") sea de tipo egreso.
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, nombre, tipo, icono, es_personalizada, usuario_id, created_at
@@ -318,7 +318,7 @@ func TestDeudaService_MarcarPagada_MesCerrado(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByID)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaSvcCols()).
-			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "", "2026-09-05", "pendiente", created))
+			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pendiente", created))
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, nombre, tipo, icono, es_personalizada, usuario_id, created_at
 		 FROM categorias
 		 WHERE es_personalizada = FALSE OR usuario_id = ?
@@ -349,7 +349,7 @@ func TestDeudaService_MarcarPagada_CategoriaPorDefecto(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByID)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaSvcCols()).
-			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "debito", "2026-09-05", "pendiente", created))
+			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "debito", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pendiente", created))
 
 	// Categoría 7 de la deuda es egreso.
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, nombre, tipo, icono, es_personalizada, usuario_id, created_at
@@ -404,7 +404,7 @@ func TestDeudaService_MarcarPagada_MedioPagoOverride(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByID)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaSvcCols()).
-			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "debito", "2026-09-05", "pendiente", created))
+			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "debito", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pendiente", created))
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, nombre, tipo, icono, es_personalizada, usuario_id, created_at
 		 FROM categorias
@@ -451,7 +451,7 @@ func TestDeudaService_MarcarPagada_Errores(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByID)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaSvcCols()).
-			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "", "2026-09-05", "pagada", created))
+			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pagada", created))
 	if _, err := svc.MarcarPagada(context.Background(), 1, 7, 7, "", ""); !errors.Is(err, model.ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput for deuda ya pagada, got %v", err)
 	}
@@ -460,7 +460,7 @@ func TestDeudaService_MarcarPagada_Errores(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByID)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaSvcCols()).
-			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "", "2026-09-05", "pendiente", created))
+			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pendiente", created))
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, nombre, tipo, icono, es_personalizada, usuario_id, created_at
 		 FROM categorias
 		 WHERE es_personalizada = FALSE OR usuario_id = ?
@@ -476,7 +476,7 @@ func TestDeudaService_MarcarPagada_Errores(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryDeudaByID)).
 		WithArgs(int64(7), int64(1)).
 		WillReturnRows(sqlmock.NewRows(deudaSvcCols()).
-			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "", "2026-09-05", "pendiente", created))
+			AddRow(7, 1, "tarjeta_credito", "Visa", "", 80000.0, 7, "", time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC), "pendiente", created))
 	if _, err := svc.MarcarPagada(context.Background(), 1, 7, 7, "no-es-fecha", ""); !errors.Is(err, model.ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput for fecha malformada, got %v", err)
 	}
