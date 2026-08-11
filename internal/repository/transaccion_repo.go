@@ -89,6 +89,16 @@ func (r *TransaccionRepo) FindByMesID(ctx context.Context, mesID, usuarioID int6
 func (r *TransaccionRepo) FindByPeriodo(ctx context.Context, usuarioID int64, periodo string) ([]model.Transaccion, error) {
 	start := periodo + "-01"
 	end := periodo + "-31"
+	return r.findByRango(ctx, usuarioID, start, end)
+}
+
+// FindByRango devuelve transacciones entre dos fechas (inclusive), para
+// construir la ventana de "últimos movimientos" del balance general.
+func (r *TransaccionRepo) FindByRango(ctx context.Context, usuarioID int64, desde, hasta string) ([]model.Transaccion, error) {
+	return r.findByRango(ctx, usuarioID, desde, hasta)
+}
+
+func (r *TransaccionRepo) findByRango(ctx context.Context, usuarioID int64, start, end string) ([]model.Transaccion, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
 		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id

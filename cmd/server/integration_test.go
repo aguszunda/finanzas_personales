@@ -479,6 +479,231 @@ func TestDeudas_PageConDatos(t *testing.T) {
 	}
 }
 
+func TestDeudas_MarcarPagada_generaEgreso(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "pagar@test.com")
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Tarjeta","monto_total":80000,"medio_pago":"debito"}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create deuda: expected 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var deuda map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &deuda)
+	id := int64(deuda["id"].(float64))
+	if deuda["estado"] != "pendiente" {
+		t.Fatalf("estado inicial debería ser pendiente, got %v", deuda["estado"])
+	}
+
+	// Una categoría de tipo egreso del listado.
+	rec = doReq(t, env.router, http.MethodGet, "/api/categorias", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("categorias: expected 200, got %d", rec.Code)
+	}
+	var cats []map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &cats)
+	var catID int64
+	for _, c := range cats {
+		if c["tipo"] == "egreso" {
+			catID = int64(c["id"].(float64))
+			break
+		}
+	}
+	if catID == 0 {
+		t.Fatal("no hay categorías de egreso de sistema")
+	}
+
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/deudas/%d/pagar", id), token,
+		fmt.Sprintf(`{"categoria_id":%d,"medio_pago":"efectivo"}`, catID), "application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("pagar deuda: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	json.Unmarshal(rec.Body.Bytes(), &deuda)
+	if deuda["estado"] != "pagada" {
+		t.Errorf("estado tras pagar debería ser pagada, got %v", deuda["estado"])
+	}
+
+	// El listado conserva la deuda, ahora pagada.
+	rec = doReq(t, env.router, http.MethodGet, "/api/deudas", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list deudas: expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"estado":"pagada"`) {
+		t.Errorf("deuda pagada no figura en el listado: %s", rec.Body.String())
+	}
+
+	// El egreso apareció en el feed de últimos movimientos y la deuda ya no.
+	rec = doReq(t, env.router, http.MethodGet, "/api/dashboard", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dashboard: expected 200, got %d", rec.Code)
+	}
+	var dash map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &dash)
+	movimientos := dash["ultimos_movimientos"].([]interface{})
+	var foundEgreso, foundDeuda bool
+	for _, m := range movimientos {
+		mv := m.(map[string]interface{})
+		if mv["origen"] == "deuda" {
+			foundDeuda = true
+		}
+		if mv["origen"] == "transaccion" && mv["tipo"] == "egreso" && mv["monto"].(float64) == 80000 {
+			foundEgreso = true
+		}
+	}
+	if !foundEgreso {
+		t.Error("el egreso por el pago de la deuda no aparece en últimos movimientos")
+	}
+	if foundDeuda {
+		t.Error("la deuda pagada no debería aparecer en últimos movimientos")
+	}
+	if mes := dash["mes_actual"].(map[string]interface{}); mes["egresos_total"].(float64) != 80000 {
+		t.Errorf("egresos_total debería incluir el egreso del pago: %v", mes["egresos_total"])
+	}
+
+	// El egreso registró la forma de pago elegida en la confirmación ("efectivo"),
+	// no la guardada en la deuda ("debito").
+	rec = doReq(t, env.router, http.MethodGet, "/api/transacciones", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list transacciones: expected 200, got %d", rec.Code)
+	}
+	var txs []map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &txs)
+	var foundMedio bool
+	for _, tx := range txs {
+		if tx["tipo"] == "egreso" && strings.HasPrefix(tx["descripcion"].(string), "Pago deuda:") {
+			if tx["medio_pago"] == "efectivo" {
+				foundMedio = true
+			} else {
+				t.Errorf("egreso del pago debería tener medio_pago efectivo, got %v", tx["medio_pago"])
+			}
+		}
+	}
+	if !foundMedio {
+		t.Error("no se encontró el egreso generado por el pago de la deuda")
+	}
+
+	// Pagar de nuevo -> rechazado (no duplica egreso).
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/deudas/%d/pagar", id), token,
+		fmt.Sprintf(`{"categoria_id":%d}`, catID), "application/json", false)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("doble pago: expected 400, got %d", rec.Code)
+	}
+}
+
+func TestDeudas_MarcarPagada_CategoriaInvalida(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "pagarcinvalida@test.com")
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"prestamo","entidad":"Banco","monto_total":10000}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create deuda: expected 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var deuda map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &deuda)
+	id := int64(deuda["id"].(float64))
+
+	// Categoría 1 (Sueldo) es de ingreso: no puede registrar el egreso.
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/deudas/%d/pagar", id), token,
+		`{"categoria_id":1}`, "application/json", false)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("categoria de ingreso: expected 400, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// La deuda sigue pendiente.
+	rec = doReq(t, env.router, http.MethodGet, fmt.Sprintf("/api/deudas/%d", id), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get deuda: expected 200, got %d", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), `"estado":"pagada"`) {
+		t.Error("la deuda no debería haberse marcado pagada con categoría inválida")
+	}
+
+	// Categoría inexistente -> 400.
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/deudas/%d/pagar", id), token,
+		`{"categoria_id":999999}`, "application/json", false)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("categoria inexistente: expected 400, got %d (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDeudas_MarcarPagada_MesCerrado(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "pagarcerrado@test.com")
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"tarjeta_credito","entidad":"Visa","monto_total":80000}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create deuda: expected 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var deuda map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &deuda)
+	id := int64(deuda["id"].(float64))
+
+	// Cerramos el mes actual como hizo el usuario.
+	rec = doReq(t, env.router, http.MethodGet, "/api/meses/current", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("mes current: expected 200, got %d", rec.Code)
+	}
+	var mes map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &mes)
+	mesID := int64(mes["id"].(float64))
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/meses/%d/cerrar", mesID), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cerrar mes: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// Sin fecha (default hoy -> mes cerrado) debe devolver 409 y no marcar nada.
+	rec = doReq(t, env.router, http.MethodGet, "/api/categorias", token, "", "", false)
+	var cats []map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &cats)
+	var catID int64
+	for _, c := range cats {
+		if c["tipo"] == "egreso" {
+			catID = int64(c["id"].(float64))
+			break
+		}
+	}
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/deudas/%d/pagar", id), token,
+		`{"categoria_id":`+fmt.Sprintf("%d", catID)+`}`, "application/json", false)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("pagar sin fecha con mes cerrado: expected 409, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// Pagar indicando el próximo mes (abierto, dejado por Cerrar) -> 200.
+	proximoPeriodo := time.Now().AddDate(0, 1, 0).Format("2006-01")
+	fechaPago := proximoPeriodo + "-10"
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/deudas/%d/pagar", id), token,
+		fmt.Sprintf(`{"categoria_id":%d,"fecha":%q}`, catID, fechaPago), "application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("pagar con fecha en mes abierto: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	json.Unmarshal(rec.Body.Bytes(), &deuda)
+	if deuda["estado"] != "pagada" {
+		t.Errorf("estado tras pagar debería ser pagada, got %v", deuda["estado"])
+	}
+
+	// El egreso quedó en el mes abierto indicado.
+	rec = doReq(t, env.router, http.MethodGet, "/api/transacciones?periodo="+proximoPeriodo, token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("transacciones del próximo periodo: expected 200, got %d", rec.Code)
+	}
+	var trans []map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &trans)
+	found := false
+	for _, tr := range trans {
+		if tr["tipo"] == "egreso" && tr["monto"].(float64) == 80000 && tr["fecha"] == fechaPago {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("egreso del pago no quedó en el mes %s: %v", proximoPeriodo, trans)
+	}
+}
+
 func TestBalance_AhorroAcumuladoYPasivos(t *testing.T) {
 	env := newTestEnv(t)
 	token, _ := registerJSON(t, env, "bal@test.com")
@@ -677,7 +902,7 @@ func TestPages_Render(t *testing.T) {
 		path    string
 		markers []string
 	}{
-		{"/api/dashboard/page", []string{"Ingresos del Mes", "Egresos del Mes", "Tasa de Ahorro"}},
+		{"/api/dashboard/page", []string{"Balance General", "Ingresos del Mes", "Egresos del Mes", "Tasa de Ahorro", "Últimos Movimientos", "Últimos 10 días"}},
 		{"/api/transacciones/page", []string{"Transacciones", "Todos", `value="` + periodoActual + `"`}},
 		{"/api/costos-fijos/page", []string{"Costos Fijos", "Internet"}},
 		{"/api/balance/page", []string{"Balance", "RESULTADO NETO", "$ 50000.00", "$ 15000.00", "$ 35000.00", "Ahorro Acumulado", "PATRIMONIO NETO"}},
@@ -722,6 +947,7 @@ func TestFormFragments_Render(t *testing.T) {
 		{fmt.Sprintf("/api/transacciones/form?edit_id=%d", tID), []string{"Editar Transacción", fmt.Sprintf(`hx-put="/api/transacciones/%d"`, tID), `value="test egreso"`}, []string{`hx-post`}},
 		{"/api/deudas/form", []string{"Nueva Deuda", `hx-post="/api/deudas"`}, []string{`hx-put`}},
 		{fmt.Sprintf("/api/deudas/form?edit_id=%d", dID), []string{"Editar Deuda", fmt.Sprintf(`hx-put="/api/deudas/%d"`, dID), `value="Banco Galicia"`}, []string{`hx-post`}},
+		{fmt.Sprintf("/api/deudas/%d/pagar/form", dID), []string{"Confirmar pago", fmt.Sprintf(`hx-post="/api/deudas/%d/pagar"`, dID), "Comida", `name="medio_pago"`}, []string{`hx-put`}},
 	}
 	for _, tt := range tests {
 		rec := doReq(t, env.router, http.MethodGet, tt.path, token, "", "", false)
@@ -969,8 +1195,85 @@ func TestDashboard_EgresosSoloYMuchosMovimientos(t *testing.T) {
 		t.Errorf("expected tasa_ahorro nil with no ingresos, got %v", mesActual["tasa_ahorro"])
 	}
 	ultimos, _ := dash["ultimos_movimientos"].([]interface{})
-	if len(ultimos) != 5 {
-		t.Errorf("expected 5 ultimos_movimientos, got %d", len(ultimos))
+	if len(ultimos) != 6 {
+		t.Errorf("expected 6 ultimos_movimientos (los del día, sin límite de 5), got %d", len(ultimos))
+	}
+}
+
+func TestDashboard_FeedUnificadoConDeudas(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "dashfeed@test.com")
+	dia := time.Now().Format("2006-01-02")
+
+	createTransaction(t, env, token, "egreso", 25000, dia)
+	doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Celular","monto_total":60000}`,
+		"application/json", false)
+
+	rec := doReq(t, env.router, http.MethodGet, "/api/dashboard", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dashboard: expected 200, got %d", rec.Code)
+	}
+	var dash map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &dash)
+	ultimos, _ := dash["ultimos_movimientos"].([]interface{})
+	if len(ultimos) != 2 {
+		t.Fatalf("expected 2 ultimos_movimientos (transacción + deuda), got %d", len(ultimos))
+	}
+	var transaccionVista, deudaVista bool
+	for _, m := range ultimos {
+		mm, _ := m.(map[string]interface{})
+		switch mm["origen"] {
+		case "deuda":
+			deudaVista = true
+			if mm["monto"] != 60000.0 {
+				t.Errorf("expected deuda monto 60000, got %v", mm["monto"])
+			}
+		case "transaccion":
+			transaccionVista = true
+		}
+	}
+	if !transaccionVista || !deudaVista {
+		t.Errorf("expected feed with transaccion and deuda, got transaccion=%v deuda=%v", transaccionVista, deudaVista)
+	}
+	// El feed NO debe afectar los egresos del mes (deuda no es egreso).
+	mesActual, _ := dash["mes_actual"].(map[string]interface{})
+	if mesActual["egresos_total"].(float64) != 25000 {
+		t.Errorf("egresos_total no debe incluir la deuda, got %v", mesActual["egresos_total"])
+	}
+}
+
+func TestDashboard_FeedFiltradoPorMes(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "dashmes@test.com")
+	periodo := time.Now().Format("2006-01")
+
+	// transacción y deuda creadas hoy, dentro del período actual.
+	createTransaction(t, env, token, "egreso", 1000, time.Now().Format("2006-01-02"))
+	doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"prestamo","entidad":"Banco","monto_total":90000}`,
+		"application/json", false)
+
+	rec := doReq(t, env.router, http.MethodGet, "/api/dashboard?periodo="+periodo, token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dashboard filtered: expected 200, got %d", rec.Code)
+	}
+	var dash map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &dash)
+	ultimos, _ := dash["ultimos_movimientos"].([]interface{})
+	if len(ultimos) != 2 {
+		t.Errorf("expected 2 movimientos al filtrar por mes, got %d", len(ultimos))
+	}
+
+	// Filtrar por un mes sin movimientos devuelve un feed vacío.
+	rec = doReq(t, env.router, http.MethodGet, "/api/dashboard?periodo=2001-01", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dashboard filtered empty: expected 200, got %d", rec.Code)
+	}
+	json.Unmarshal(rec.Body.Bytes(), &dash)
+	ultimos, _ = dash["ultimos_movimientos"].([]interface{})
+	if len(ultimos) != 0 {
+		t.Errorf("expected 0 movimientos en mes vacío, got %d", len(ultimos))
 	}
 }
 

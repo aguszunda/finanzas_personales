@@ -121,6 +121,36 @@ func TestTransaccionRepo_FindByMesID(t *testing.T) {
 	}
 }
 
+func TestTransaccionRepo_FindByRango(t *testing.T) {
+	db, mock := newRepoDB(t)
+	r := NewTransaccionRepo(db)
+
+	query := regexp.QuoteMeta(`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
+		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id
+		 WHERE t.usuario_id = ? AND t.fecha >= ? AND t.fecha <= ?
+		 ORDER BY t.fecha DESC, t.created_at DESC`)
+	created := time.Now()
+	mock.ExpectQuery(query).WithArgs(int64(1), "2026-08-01", "2026-08-10").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "categoria", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"}).
+			AddRow(1, 1, "egreso", 45000.0, created, 6, "Servicios", "", "debito", false, nil, nil, "confirmado", 9, created, created).
+			AddRow(2, 1, "ingreso", 150000.0, created, 1, "Sueldo", "", "transferencia", false, nil, nil, "confirmado", 9, created, created))
+
+	ts, err := r.FindByRango(context.Background(), 1, "2026-08-01", "2026-08-10")
+	if err != nil {
+		t.Fatalf("FindByRango: %v", err)
+	}
+	if len(ts) != 2 || ts[0].ID != 1 || ts[1].Categoria != "Sueldo" {
+		t.Errorf("unexpected result: %+v", ts)
+	}
+
+	// Sin resultados no es error.
+	mock.ExpectQuery(query).WithArgs(int64(1), "2026-01-01", "2026-01-31").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "categoria", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"}))
+	if ts, err := r.FindByRango(context.Background(), 1, "2026-01-01", "2026-01-31"); err != nil || len(ts) != 0 {
+		t.Fatalf("expected empty, got %v (%v)", ts, err)
+	}
+}
+
 func TestTransaccionRepo_SumByCategoria(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewTransaccionRepo(db)

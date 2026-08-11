@@ -23,6 +23,27 @@
     </div>
     <div class="form-row">
         <div class="form-group">
+            <label>Categoría del egreso (al pagar)</label>
+            <select name="categoria_id">
+                <option value="">Sin asignar</option>
+                {{range .categorias}}
+                <option value="{{.ID}}" {{if and $.deuda (eq $.deuda.CategoriaID .ID)}}selected{{end}}>{{.Icono}} {{.Nombre}}</option>
+                {{end}}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Medio de pago</label>
+            <select name="medio_pago">
+                <option value="">Seleccionar</option>
+                <option value="efectivo" {{if and .deuda (eq .deuda.MedioPago "efectivo")}}selected{{end}}>Efectivo</option>
+                <option value="debito" {{if and .deuda (eq .deuda.MedioPago "debito")}}selected{{end}}>Débito</option>
+                <option value="credito" {{if and .deuda (eq .deuda.MedioPago "credito")}}selected{{end}}>Crédito</option>
+                <option value="transferencia" {{if and .deuda (eq .deuda.MedioPago "transferencia")}}selected{{end}}>Transferencia</option>
+            </select>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
             <label>Monto Total</label>
             <input type="number" name="monto_total" step="0.01" min="0.01" required {{if .deuda}}value="{{.deuda.MontoTotal}}"{{end}}>
         </div>

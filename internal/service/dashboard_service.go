@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"finanzas_personales/internal/model"
@@ -12,17 +13,18 @@ type DashboardService struct {
 	mesRepo         *repository.MesRepo
 	transaccionRepo *repository.TransaccionRepo
 	categoriaRepo   *repository.CategoriaRepo
+	deudaRepo       *repository.DeudaRepo
 }
 
-func NewDashboardService(mr *repository.MesRepo, tr *repository.TransaccionRepo, cr *repository.CategoriaRepo) *DashboardService {
-	return &DashboardService{mesRepo: mr, transaccionRepo: tr, categoriaRepo: cr}
+func NewDashboardService(mr *repository.MesRepo, tr *repository.TransaccionRepo, cr *repository.CategoriaRepo, dr *repository.DeudaRepo) *DashboardService {
+	return &DashboardService{mesRepo: mr, transaccionRepo: tr, categoriaRepo: cr, deudaRepo: dr}
 }
 
 type DashboardData struct {
-	MesActual          *model.Mes          `json:"mes_actual"`
-	MesAnterior        *model.Mes          `json:"mes_anterior,omitempty"`
-	GastosPorCategoria []CategoriaGasto    `json:"gastos_por_categoria"`
-	UltimosMovimientos []model.Transaccion `json:"ultimos_movimientos"`
+	MesActual          *model.Mes         `json:"mes_actual"`
+	MesAnterior        *model.Mes         `json:"mes_anterior,omitempty"`
+	GastosPorCategoria []CategoriaGasto   `json:"gastos_por_categoria"`
+	UltimosMovimientos []model.Movimiento `json:"ultimos_movimientos"`
 }
 
 type CategoriaGasto struct {
@@ -33,7 +35,7 @@ type CategoriaGasto struct {
 	Icono       string  `json:"icono"`
 }
 
-func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64) (*DashboardData, error) {
+func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64, periodo string) (*DashboardData, error) {
 	periodoActual := time.Now().Format("2006-01")
 	mesActual, err := s.mesRepo.FindOrCreate(ctx, usuarioID, periodoActual)
 	if err != nil {
@@ -96,16 +98,77 @@ func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64) (*
 		}
 		gastosPorCat = append(gastosPorCat, cat)
 	}
-	var ultimos []model.Transaccion
-	if len(transacciones) > 5 {
-		ultimos = transacciones[:5]
-	} else {
-		ultimos = transacciones
+	// Feed unificado de "Últimos Movimientos": transacciones + deudas.
+	// Por defecto se muestran los últimos 10 días; si se filtra por mes, la
+	// ventana reemplaza los 10 días por el período completo.
+	desde, hasta := rango10Dias()
+	if periodo != "" {
+		desde, hasta = periodo+"-01", periodo+"-31"
+	}
+	transaccionesUltimos, err := s.transaccionRepo.FindByRango(ctx, usuarioID, desde, hasta)
+	if err != nil {
+		return nil, err
+	}
+	deudasUltimos, err := s.deudaRepo.FindByRango(ctx, usuarioID, desde, hasta)
+	if err != nil {
+		return nil, err
+	}
+	movimientos, err := s.unirMovimientos(transaccionesUltimos, deudasUltimos)
+	if err != nil {
+		return nil, err
 	}
 	return &DashboardData{
 		MesActual:          mesActual,
 		MesAnterior:        mesAnterior,
 		GastosPorCategoria: gastosPorCat,
-		UltimosMovimientos: ultimos,
+		UltimosMovimientos: movimientos,
 	}, nil
+}
+
+// rango10Dias devuelve el rango (desde, hasta) de los últimos 10 días.
+func rango10Dias() (string, string) {
+	hasta := time.Now()
+	desde := hasta.AddDate(0, 0, -9)
+	return desde.Format("2006-01-02"), hasta.Format("2006-01-02")
+}
+
+// unirMovimientos combina transacciones y deudas en un único feed ordenado
+// por fecha desc. Las deudas se muestran como movimientos con su monto total
+// y fecha de alta (created_at).
+func (s *DashboardService) unirMovimientos(transacciones []model.Transaccion, deudas []model.Deuda) ([]model.Movimiento, error) {
+	movimientos := make([]model.Movimiento, 0, len(transacciones)+len(deudas))
+	for _, t := range transacciones {
+		movimientos = append(movimientos, model.Movimiento{
+			ID:          t.ID,
+			Origen:      "transaccion",
+			Tipo:        t.Tipo,
+			Monto:       t.Monto,
+			Fecha:       t.Fecha,
+			Categoria:   t.Categoria,
+			Descripcion: t.Descripcion,
+			CreatedAt:   t.CreatedAt,
+		})
+	}
+	for _, d := range deudas {
+		movimientos = append(movimientos, model.Movimiento{
+			ID:          d.ID,
+			Origen:      "deuda",
+			Tipo:        "deuda",
+			Monto:       d.MontoTotal,
+			Fecha:       d.CreatedAt.Format("2006-01-02"),
+			Categoria:   d.Entidad,
+			Descripcion: d.Descripcion,
+			CreatedAt:   d.CreatedAt,
+		})
+	}
+	sort.SliceStable(movimientos, func(i, j int) bool {
+		if movimientos[i].Fecha != movimientos[j].Fecha {
+			return movimientos[i].Fecha > movimientos[j].Fecha
+		}
+		if movimientos[i].CreatedAt.Equal(movimientos[j].CreatedAt) {
+			return movimientos[i].ID > movimientos[j].ID
+		}
+		return movimientos[i].CreatedAt.After(movimientos[j].CreatedAt)
+	})
+	return movimientos, nil
 }

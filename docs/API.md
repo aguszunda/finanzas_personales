@@ -200,7 +200,7 @@ Recalcula ingresos/egresos/superávit/tasa + acumulados sin cerrar. `409` si el 
 Lista de deudas del usuario.
 
 ### `POST /api/deudas`
-`entidad` (obligatoria) y `monto_total` (> 0) requeridos; `tipo` opcional (default `"otro"`), debe ser una de: `tarjeta_credito`, `prestamo`, `hipoteca`, `personal`, `otro`.
+`entidad` (obligatoria) y `monto_total` (> 0) requeridos; `tipo` opcional (default `"otro"`), debe ser una de: `tarjeta_credito`, `prestamo`, `hipoteca`, `personal`, `otro`. Opcionales: `categoria_id` (categoría de egreso que se usará por defecto al pagar) y `medio_pago` (`efectivo`, `debito`, `credito`, `transferencia`; se aplica al egreso generado al pagar).
 
 ```bash
 curl -s -X POST http://localhost:8080/api/deudas \
@@ -210,6 +210,8 @@ curl -s -X POST http://localhost:8080/api/deudas \
     "entidad": "Visa",
     "descripcion": "Cuota 3 meses",
     "monto_total": 150000,
+    "categoria_id": 6,
+    "medio_pago": "debito",
     "proximo_vencimiento": "2026-08-15"
   }'
 ```
@@ -219,30 +221,48 @@ curl -s -X POST http://localhost:8080/api/deudas \
 {
   "id": 1, "usuario_id": 1, "tipo": "tarjeta_credito",
   "entidad": "Visa", "descripcion": "Cuota 3 meses",
-  "monto_total": 150000, "proximo_vencimiento": "2026-08-15",
-  "created_at": "2026-07-30T12:00:00Z"
+  "monto_total": 150000, "categoria_id": 6, "medio_pago": "debito",
+  "proximo_vencimiento": "2026-08-15",
+  "estado": "pendiente", "created_at": "2026-07-30T12:00:00Z"
 }
 ```
+
+`estado` es `"pendiente"` (nueva) o `"pagada"` (ver `POST /api/deudas/{id}/pagar`).
 
 ### `GET /api/deudas/{id}`
 `404` si no existe o no pertenece al usuario.
 
 ### `PUT /api/deudas/{id}`
-Mismo body que POST. `404` si no existe o no pertenece al usuario.
+Mismo body que POST. `404` si no existe o no pertenece al usuario. El `estado` actual se conserva.
 
 ### `DELETE /api/deudas/{id}`
 `204 No Content` en éxito.
 
-> Las deudas alimentan los indicadores `pasivos_total` y `patrimonio` de cada `Mes` al recalcular/cerrar.
+### `POST /api/deudas/{id}/pagar`
+Marca la deuda como `"pagada"` y registra automáticamente una transacción de **egreso** por su `monto_total` con la categoría y fecha elegidas. A partir de ese momento la deuda deja de contar en `pasivos_total` y de aparecer en `ultimos_movimientos` (en su lugar figura el egreso).
+
+Body: `{"categoria_id": 7}` y opcionalmente `"medio_pago"` y `"fecha": "2026-09-10"`. Si `categoria_id` es `0` (u omitida) se usa la categoría guardada en la deuda (y falla si la deuda no tiene); si `medio_pago` está vacío se usa el de la deuda. Ambos se aplican al egreso generado. La categoría debe ser de tipo `egreso` (del usuario o de sistema). La fecha es opcional: vacía ⇒ **hoy**, y no puede caer en un mes cerrado.
+
+- `200` con la deuda actualizada (`estado: "pagada"`).
+- `400` si la categoría no es de egreso, no existe, la deuda no tiene categoría y no se mandó, la deuda ya está pagada o la fecha tiene formato inválido.
+- `409` si el mes de la fecha (o el actual, si no se manda fecha) está cerrado (`ErrMesCerrado`).
+- `404` si la deuda no existe o no pertenece al usuario.
+
+> El fragmento de confirmación (`/api/deudas/{id}/pagar/form`) precarga la categoría y la forma de pago de la deuda (editable) y la fecha: hoy si el mes actual está abierto, o una fecha en el primer mes abierto (el que deja `Cerrar`) con un aviso cuando el mes actual está cerrado.
+
+> Las deudas pendientes alimentan los indicadores `pasivos_total` y `patrimonio` de cada `Mes` al recalcular/cerrar; las pagadas ya no.
 
 ---
 
-## Dashboard (protegido)
+## Balance General (protegido)
 
 ### `GET /api/dashboard`
 ```bash
 curl -s http://localhost:8080/api/dashboard -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:8080/api/dashboard?periodo=2026-07" -H "Authorization: Bearer $TOKEN"
 ```
+
+`?periodo=YYYY-MM` es opcional: filtra `ultimos_movimientos` al mes completo. Sin el parámetro se muestran los `ultimos_movimientos` de los últimos 10 días.
 
 **Respuesta 200:**
 ```json
@@ -258,11 +278,14 @@ curl -s http://localhost:8080/api/dashboard -H "Authorization: Bearer $TOKEN"
   "gastos_por_categoria": [
     {"categoria_id": 5, "categoria": "Alquiler", "monto": 45000, "porcentaje": 100, "icono": "🏠"}
   ],
-  "ultimos_movimientos": [ "...", "..." ]
+  "ultimos_movimientos": [
+    {"id": 1, "origen": "transaccion", "tipo": "ingreso", "monto": 150000, "fecha": "2026-07-02", "categoria_nombre": "Sueldo", "descripcion": "Sueldo julio"},
+    {"id": 2, "origen": "deuda", "tipo": "deuda", "monto": 60000, "fecha": "2026-07-05", "categoria_nombre": "Visa", "descripcion": "Celular"}
+  ]
 }
 ```
 
-`mes_anterior` viene `omitempty` (ausente si no hay mes del período anterior). `ultimos_movimientos` son como máximo las 5 transacciones más recientes del mes actual.
+`mes_anterior` viene `omitempty` (ausente si no hay mes del período anterior). `ultimos_movimientos` es un feed único y ordenado por fecha: une **transacciones** (`origen: "transaccion"`) con **deudas** (`origen: "deuda"`, cada una como movimiento con su `monto_total` y fecha de alta), tanto las del mes actual como las del período filtrado. Las deudas pagadas **no** aparecen en el feed (su egreso las reemplaza). Las deudas **no** suman a los `egresos_total`.
 
 ---
 
@@ -271,15 +294,16 @@ curl -s http://localhost:8080/api/dashboard -H "Authorization: Bearer $TOKEN"
 | Ruta | Contenido |
 |------|-----------|
 | `/login` · `/register` | Formularios de autenticación |
-| `/api/dashboard/page` | Dashboard |
+| `/api/dashboard/page` | Balance General (con `?periodo=YYYY-MM`, default últimos 10 días) |
 | `/api/transacciones/page` | CRUD transacciones (`?periodo=YYYY-MM`, default `all`) |
 | `/api/costos-fijos/page` | CRUD costos fijos |
 | `/api/meses/page` | Lista de meses |
-| `/api/deudas/page` | CRUD deudas |
+| `/api/deudas/page` | CRUD deudas + botón "Pagar" |
 | `/api/balance/page` | Balance del mes actual (imprimible) |
 | `/api/balance/{id}/page` | Balance de mes específico |
 | `/api/transacciones/form[?edit_id={id}]` | Fragmento HTML del formulario (modo crear o editar) |
 | `/api/deudas/form[?edit_id={id}]` | Fragmento HTML del formulario (modo crear o editar) |
+| `/api/deudas/{id}/pagar/form` | Fragmento HTML de confirmación de pago (elige categoría del egreso) |
 
 Todas las páginas protegidas requieren auth. Los endpoints `*/form` devuelven un fragmento HTML (sin layout) usado por el modal: sin `edit_id` renderizan el form vacío con `hx-post`; con `edit_id` precargan el registro y responden con `hx-put`. El verbo y los valores se generan en el servidor para que HTMX los procese al hacer el swap. El balance tiene CSS `@media print`: `Ctrl+P` → PDF limpio.
 

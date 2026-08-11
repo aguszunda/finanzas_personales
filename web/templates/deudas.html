@@ -19,6 +19,7 @@
                 <th>Descripción</th>
                 <th>Monto Total</th>
                 <th>Próx. Venc.</th>
+                <th>Estado</th>
                 <th class="no-print">Acciones</th>
             </tr>
         </thead>
@@ -30,7 +31,14 @@
                 <td>{{.Descripcion}}</td>
                 <td style="font-weight:600;color:var(--danger)">$ {{printf "%.2f" .MontoTotal}}</td>
                 <td>{{.ProximoVencimiento}}</td>
+                <td>{{if eq .Estado "pagada"}}<span class="badge badge-pagada">✅ Pagada</span>{{else}}<span class="badge badge-pendiente">⏳ Pendiente</span>{{end}}</td>
                 <td class="no-print">
+                    {{if ne .Estado "pagada"}}
+                    <button class="btn btn-success btn-sm"
+                            onclick="document.getElementById('form-modal').style.display='flex'"
+                            hx-get="/api/deudas/{{.ID}}/pagar/form"
+                            hx-target="#form-modal-content">✅ Pagar</button>
+                    {{end}}
                     <button class="btn btn-outline btn-sm"
                             onclick="document.getElementById('form-modal').style.display='flex'"
                             hx-get="/api/deudas/form?edit_id={{.ID}}"
@@ -39,7 +47,7 @@
                 </td>
             </tr>
             {{else}}
-            <tr><td colspan="6" class="text-center" style="padding:2rem;color:var(--text-secondary)">No hay deudas registradas</td></tr>
+            <tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--text-secondary)">No hay deudas registradas</td></tr>
             {{end}}
         </tbody>
     </table>

@@ -35,8 +35,8 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 	transSvc := service.NewTransaccionService(transaccionRepo, mesRepo)
 	cfSvc := service.NewCostoFijoService(costoFijoRepo, mesRepo)
 	mesSvc := service.NewMesService(mesRepo, transaccionRepo, costoFijoRepo, deudaRepo)
-	deudaSvc := service.NewDeudaService(deudaRepo)
-	dashSvc := service.NewDashboardService(mesRepo, transaccionRepo, categoriaRepo)
+	deudaSvc := service.NewDeudaService(deudaRepo, categoriaRepo, transSvc)
+	dashSvc := service.NewDashboardService(mesRepo, transaccionRepo, categoriaRepo, deudaRepo)
 
 	authH := handler.NewAuthHandler(authSvc)
 	transH := handler.NewTransaccionHandler(transSvc)
@@ -116,6 +116,8 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 				r.Get("/{id}", deudaH.GetByID)
 				r.Put("/{id}", deudaH.Update)
 				r.Delete("/{id}", deudaH.Delete)
+				r.Get("/{id}/pagar/form", pagesH.DeudaPagoForm)
+				r.Post("/{id}/pagar", deudaH.MarcarPagada)
 			})
 
 			r.Get("/dashboard", dashH.GetDashboard)

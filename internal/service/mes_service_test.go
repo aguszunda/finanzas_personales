@@ -60,7 +60,7 @@ const (
 		 ORDER BY cf.dia_vencimiento, cf.descripcion`
 	querySumSuperavitAnterior = `SELECT COALESCE(SUM(superavit), 0) FROM meses
 		 WHERE usuario_id = ? AND estado = 'cerrado' AND periodo < ?`
-	querySumMontoTotal = `SELECT COALESCE(SUM(monto_total), 0) FROM deudas WHERE usuario_id = ?`
+	querySumMontoTotal = `SELECT COALESCE(SUM(monto_total), 0) FROM deudas WHERE usuario_id = ? AND estado != 'pagada'`
 )
 
 func newMesService(t *testing.T) (*MesService, sqlmock.Sqlmock) {

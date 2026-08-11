@@ -2,6 +2,9 @@
 {{if .error}}
 <div class="alert alert-error">{{.error}}</div>
 {{else}}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center">
+    <h2>📊 Balance General</h2>
+</div>
 <div class="grid">
     <div class="card stat">
         <div class="value positive">$ {{printf "%.2f" .d.MesActual.IngresosTotal}}</div>
@@ -71,7 +74,15 @@
 </div>
 
 <div class="card">
-    <h3 style="margin-bottom:0.5rem">Últimos Movimientos</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem">
+        <h3 style="margin-bottom:0">Últimos Movimientos</h3>
+        <select onchange="window.location='/api/dashboard/page?periodo='+this.value" style="margin-left:0.5rem;padding:0.375rem 0.75rem;border:1px solid var(--border);border-radius:6px">
+            <option value="" {{if eq .periodo ""}}selected{{end}}>Últimos 10 días</option>
+            {{range .meses}}
+            <option value="{{.Periodo}}" {{if eq $.periodo .Periodo}}selected{{end}}>{{.Periodo}}</option>
+            {{end}}
+        </select>
+    </div>
     {{if .d.UltimosMovimientos}}
     <table>
         <thead>
@@ -87,18 +98,26 @@
             {{range .d.UltimosMovimientos}}
             <tr>
                 <td>{{.Fecha}}</td>
-                <td><span class="badge badge-{{.Tipo}}">{{if eq .Tipo "ingreso"}}💰{{else}}💸{{end}}</span></td>
+                <td>
+                    {{if eq .Origen "deuda"}}
+                    <span class="badge badge-deuda">💳 Deuda</span>
+                    {{else if eq .Tipo "ingreso"}}
+                    <span class="badge badge-ingreso">💰 Ingreso</span>
+                    {{else}}
+                    <span class="badge badge-egreso">💸 Egreso</span>
+                    {{end}}
+                </td>
                 <td>{{.Categoria}}</td>
                 <td>{{.Descripcion}}</td>
-                <td class="text-right" style="font-weight:600;color:{{if eq .Tipo "ingreso"}}var(--success){{else}}var(--danger){{end}}">
-                    {{if eq .Tipo "ingreso"}}+{{else}}-{{end}}$ {{printf "%.2f" .Monto}}
+                <td class="text-right" style="font-weight:600;color:{{if and (eq .Origen "transaccion") (eq .Tipo "ingreso")}}var(--success){{else}}var(--danger){{end}}">
+                    {{if and (eq .Origen "transaccion") (eq .Tipo "ingreso")}}+{{else}}-{{end}}$ {{printf "%.2f" .Monto}}
                 </td>
             </tr>
             {{end}}
         </tbody>
     </table>
     {{else}}
-    <p class="empty-state">Aún no hay movimientos</p>
+    <p class="empty-state">Aún no hay movimientos{{if eq .periodo ""}} en los últimos 10 días{{end}}</p>
     {{end}}
 </div>
 
