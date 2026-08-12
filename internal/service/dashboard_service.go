@@ -41,6 +41,19 @@ func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64, pe
 	if err != nil {
 		return nil, err
 	}
+	if mesActual.Estado == "cerrado" {
+		meses, err := s.mesRepo.FindByUsuarioID(ctx, usuarioID)
+		if err != nil {
+			return nil, err
+		}
+		if abierto := primerMesAbierto(meses, periodoActual); abierto != "" {
+			periodoActual = abierto
+			mesActual, err = s.mesRepo.FindOrCreate(ctx, usuarioID, abierto)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	transacciones, err := s.transaccionRepo.FindByPeriodo(ctx, usuarioID, periodoActual)
 	if err != nil {
 		return nil, err
@@ -123,6 +136,18 @@ func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64, pe
 		GastosPorCategoria: gastosPorCat,
 		UltimosMovimientos: movimientos,
 	}, nil
+}
+
+func primerMesAbierto(meses []model.Mes, periodo string) string {
+	var best string
+	for _, m := range meses {
+		if m.Periodo > periodo && m.Estado == "abierto" {
+			if best == "" || m.Periodo < best {
+				best = m.Periodo
+			}
+		}
+	}
+	return best
 }
 
 // rango10Dias devuelve el rango (desde, hasta) de los últimos 10 días.

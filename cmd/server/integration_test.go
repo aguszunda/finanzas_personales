@@ -889,6 +889,80 @@ func TestDashboard_Totals(t *testing.T) {
 	}
 }
 
+func TestDashboard_MesActualCerrado_MuestraMesAbierto(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "dashcerrado@test.com")
+	periodoActual := time.Now().Format("2006-01")
+	proximoPeriodo := time.Now().AddDate(0, 1, 0).Format("2006-01")
+
+	createTransaction(t, env, token, "egreso", 10000, time.Now().Format("2006-01-02"))
+
+	// Cerramos el mes actual.
+	rec := doReq(t, env.router, http.MethodGet, "/api/meses/current", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("mes current: expected 200, got %d", rec.Code)
+	}
+	var mes map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &mes)
+	mesID := int64(mes["id"].(float64))
+	if mes["periodo"] != periodoActual {
+		t.Fatalf("expected current period %s, got %v", periodoActual, mes["periodo"])
+	}
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/meses/%d/cerrar", mesID), token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cerrar mes: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// Una deuda pagada cae en el mes abierto siguiente.
+	rec = doReq(t, env.router, http.MethodPost, "/api/deudas", token,
+		`{"tipo":"tarjeta_credito","entidad":"Visa","monto_total":80000}`,
+		"application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create deuda: expected 201, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var deuda map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &deuda)
+	id := int64(deuda["id"].(float64))
+
+	rec = doReq(t, env.router, http.MethodGet, "/api/categorias", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("categorias: expected 200, got %d", rec.Code)
+	}
+	var cats []map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &cats)
+	var catID int64
+	for _, c := range cats {
+		if c["tipo"] == "egreso" {
+			catID = int64(c["id"].(float64))
+			break
+		}
+	}
+	fechaPago := proximoPeriodo + "-10"
+	rec = doReq(t, env.router, http.MethodPost, fmt.Sprintf("/api/deudas/%d/pagar", id), token,
+		fmt.Sprintf(`{"categoria_id":%d,"fecha":%q}`, catID, fechaPago), "application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("pagar deuda en mes abierto: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// El dashboard debe reflejar el mes abierto, con el egreso del pago.
+	rec = doReq(t, env.router, http.MethodGet, "/api/dashboard", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dashboard: expected 200, got %d", rec.Code)
+	}
+	var dash map[string]interface{}
+	json.Unmarshal(rec.Body.Bytes(), &dash)
+	mesActual, _ := dash["mes_actual"].(map[string]interface{})
+	if mesActual == nil {
+		t.Fatal("mes_actual missing")
+	}
+	if mesActual["periodo"] != proximoPeriodo {
+		t.Errorf("dashboard con mes actual cerrado debería mostrar el mes abierto %s, got %v", proximoPeriodo, mesActual["periodo"])
+	}
+	if mesActual["egresos_total"].(float64) != 80000 {
+		t.Errorf("los egresos del mes abierto deberían incluir el pago de la deuda (80000), got %v", mesActual["egresos_total"])
+	}
+}
+
 func TestPages_Render(t *testing.T) {
 	env := newTestEnv(t)
 	token, _ := registerJSON(t, env, "pages@test.com")
