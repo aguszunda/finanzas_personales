@@ -11,6 +11,14 @@ type TemplateManager struct {
 	files map[string]string
 }
 
+// pageFragments asocia cada página con los partials de formulario que embebe
+// en su contenido inicial (modo "nuevo"). El mismo partial se reutiliza en el
+// modo edición a través de renderTemplateFragment cuando HTMX lo solicita.
+var pageFragments = map[string][]string{
+	"transacciones": {"transaccion_form"},
+	"deudas":        {"deuda_form"},
+}
+
 func NewTemplateManager(templatesFS fs.FS) *TemplateManager {
 	funcMap := template.FuncMap{
 		"mod": func(i, j int) int { return i % j },

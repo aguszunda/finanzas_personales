@@ -1,7 +1,10 @@
 {{define "content"}}
 <div class="card" style="display:flex;justify-content:space-between;align-items:center">
     <h2>📋 Transacciones</h2>
-    <button class="btn btn-primary" onclick="openNewForm()">+ Nueva</button>
+    <button class="btn btn-primary"
+            onclick="document.getElementById('form-modal').style.display='flex'"
+            hx-get="/api/transacciones/form"
+            hx-target="#form-modal-content">+ Nueva</button>
 </div>
 
 <div class="card">
@@ -38,7 +41,10 @@
                 </td>
                 <td>{{.MedioPago}}</td>
                 <td class="no-print">
-                    <button class="btn btn-outline btn-sm" onclick="editTransaccion({{.ID}})">✏️</button>
+                    <button class="btn btn-outline btn-sm"
+                            onclick="document.getElementById('form-modal').style.display='flex'"
+                            hx-get="/api/transacciones/form?edit_id={{.ID}}"
+                            hx-target="#form-modal-content">✏️</button>
                     <button class="btn btn-danger btn-sm" hx-delete="/api/transacciones/{{.ID}}" hx-confirm="¿Eliminar esta transacción?" hx-swap="none">🗑️</button>
                 </td>
             </tr>
@@ -50,94 +56,8 @@
 </div>
 
 <div id="form-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-    <div class="modal">
-        <h2 id="form-modal-title">Nueva Transacción</h2>
-        <form hx-post="/api/transacciones" hx-swap="none" method="post" action="/api/transacciones">
-            <div class="form-group">
-                <label>Tipo</label>
-                <select name="tipo" required>
-                    <option value="ingreso">💰 Ingreso</option>
-                    <option value="egreso">💸 Egreso</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Monto</label>
-                <input type="number" name="monto" step="0.01" min="0.01" required>
-            </div>
-            <div class="form-group">
-                <label>Fecha</label>
-                <input type="date" name="fecha" required>
-            </div>
-            <div class="form-group">
-                <label>Categoría</label>
-                <select name="categoria_id" required>
-                    {{range .categorias}}
-                    <option value="{{.ID}}">{{.Icono}} {{.Nombre}}</option>
-                    {{end}}
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Descripción</label>
-                <input type="text" name="descripcion">
-            </div>
-            <div class="form-group">
-                <label>Medio de Pago</label>
-                <select name="medio_pago">
-                    <option value="">Seleccionar</option>
-                    <option value="efectivo">Efectivo</option>
-                    <option value="debito">Débito</option>
-                    <option value="credito">Crédito</option>
-                    <option value="transferencia">Transferencia</option>
-                </select>
-            </div>
-            <div class="form-group" style="display:flex;align-items:center;gap:0.5rem">
-                <input type="checkbox" name="es_fijo" id="es_fijo" value="true">
-                <label for="es_fijo" style="margin:0">Es costo fijo</label>
-            </div>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-outline" onclick="closeTransaccionModal()">Cancelar</button>
-                <button type="submit" class="btn btn-primary">Guardar</button>
-            </div>
-        </form>
+    <div class="modal" id="form-modal-content">
+        {{template "transaccion_form" .}}
     </div>
 </div>
-
-<script>
-function resetTransaccionForm() {
-    var form = document.querySelector('#form-modal form');
-    form.reset();
-    form.setAttribute('hx-post', '/api/transacciones');
-    form.removeAttribute('hx-put');
-    document.getElementById('form-modal-title').textContent = 'Nueva Transacción';
-}
-
-function openNewForm() {
-    resetTransaccionForm();
-    document.getElementById('form-modal').style.display='flex';
-}
-
-function closeTransaccionModal() {
-    document.getElementById('form-modal').style.display='none';
-}
-
-function editTransaccion(id) {
-    fetch('/api/transacciones/'+id)
-        .then(r=>r.json())
-        .then(t=>{
-            var form = document.querySelector('#form-modal form');
-            form.reset();
-            form.removeAttribute('hx-post');
-            form.setAttribute('hx-put', '/api/transacciones/'+id);
-            document.getElementById('form-modal-title').textContent = 'Editar Transacción';
-            form.querySelector('[name="tipo"]').value = t.tipo;
-            form.querySelector('[name="monto"]').value = t.monto;
-            form.querySelector('[name="fecha"]').value = t.fecha;
-            form.querySelector('[name="categoria_id"]').value = t.categoria_id;
-            form.querySelector('[name="descripcion"]').value = t.descripcion;
-            form.querySelector('[name="medio_pago"]').value = t.medio_pago;
-            form.querySelector('[name="es_fijo"]').checked = t.es_fijo;
-            document.getElementById('form-modal').style.display='flex';
-        });
-}
-</script>
 {{end}}

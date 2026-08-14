@@ -495,9 +495,17 @@ vienen del server, no hay fetch desde JS.
  │            └── N──1 meses (mes_id FK, nullable)
  │
  └── 1 ──── N  costos_fijos
-              ├── descripcion, monto_estimado, dia_vencimiento,
-              │   activo, tipo_periodo[mensual|bimestral|anual]
-              └── N──1 categorias (categoria_id FK)
+               ├── descripcion, monto_estimado, dia_vencimiento,
+               │   activo, tipo_periodo[mensual|bimestral|anual]
+               └── N──1 categorias (categoria_id FK)
+
+  ── 1 ──── N  deudas (migración 002, estado en 004, categoria/medio_pago en 005)
+               ├── tipo[tarjeta_credito|prestamo|hipoteca|personal|otro],
+               │   entidad, descripcion, monto_total, proximo_vencimiento,
+               │   estado[pendiente|pagada],
+               │   categoria_id (FK→categorias, NULL = sin asignar: categoría
+               │   de egreso usada por defecto al pagar), medio_pago
+               └── indizados por usuario_id y estado
 ```
 
 ### 10.2 Reglas importantes del esquema
@@ -509,6 +517,9 @@ vienen del server, no hay fetch desde JS.
   `WHERE es_personalizada = FALSE OR usuario_id = ?`.
 - **`estado`** en transacciones: `pendiente` (generadas automáticamente por costos
   fijos), `confirmado` (normal), `ajuste` (correcciones contables).
+- **`deudas.estado`** (`pendiente|pagada`): al marcar una deuda como pagada se
+  registra un egreso (misma fecha, categoría elegida) y pasa a `pagada`; deja de
+  sumar a `pasivos_total` y de aparecer en el feed del balance general.
 - Las FKs tienen `ON DELETE CASCADE`: borrar un usuario borra todos sus datos.
 
 ---
@@ -546,12 +557,37 @@ transacción, primero verifica que su mes no esté `cerrado`; si lo está, devue
 
 ### 11.2 El dashboard (`internal/service/dashboard_service.go`)
 
-`GetDashboard`:
+`GetDashboard(ctx, usuarioID, periodo)`:
 1. Busca (o crea) el mes actual.
 2. Suma ingresos y egresos reales del mes.
 3. Calcula superávit y tasa de ahorro "en vivo".
 4. Agrupa los egresos por categoría con sus porcentajes.
-5. Devuelve los últimos 5 movimientos y el mes anterior para comparar.
+5. Arma el feed `ultimos_movimientos`: une transacciones y deudas
+   (`unirMovimientos`) ordenadas por fecha desc. Por defecto muestra los
+   últimos 10 días (`rango10Dias`); si se pasa `periodo` (YYYY-MM), la ventana
+   es ese mes completo. Cada deuda aparece como un movimiento con su
+   `monto_total` y fecha de alta; las deudas **no** suman a los egresos. Las
+   deudas con `estado = 'pagada'` se excluyen del feed (`deuda_repo.go:
+   FindByRango`): al pagarse quedaron representadas por su egreso.
+6. Devuelve el mes anterior para comparar.
+
+### 11.2.1 Marcar deuda como pagada (`deuda_service.go: MarcarPagada`)
+
+`MarcarPagada(ctx, usuarioID, deudaID, categoriaID, fecha, medioPago)`:
+1. Carga la deuda (debe ser del usuario y estar `pendiente`; si ya está pagada → `ErrInvalidInput`).
+2. Valida que la categoría recibida sea de tipo `egreso` (del usuario o de sistema) vía `categorias`, y que `fecha` (opcional, vacía ⇒ hoy) tenga formato `YYYY-MM-DD`.
+3. Si `categoriaID == 0` usa la categoría guardada en la deuda; si `medioPago` viene vacío usa el de la deuda. Delega en `transSvc.Create` para registrar el **egreso** por `monto_total` con la fecha indicada y esa categoría/forma de pago (reusa `FindOrCreate` de mes y la regla de mes cerrado → `ErrMesCerrado` si el mes cae en uno cerrado).
+4. Marca la deuda como `pagada` en la BD.
+
+El fragmento `DeudaPagoForm` (`pages_handler.go`) precarga la fecha del egreso:
+- mes actual abierto → hoy;
+- mes actual cerrado → una fecha en el **primer mes abierto** posterior (el que deja `Cerrar`) con un aviso en el modal. Así el pago nunca queda bloqueado por un mes cerrado.
+
+Consecuencias (todas en `deuda_repo.go`):
+- `SumMontoTotal` suma solo `estado != 'pagada'` → deja de contar en `pasivos_total`.
+- `FindByRango` excluye `pagada` → no aparece en el feed.
+- `FindByUsuarioID` / `FindByID` **sí** la devuelven → queda visible con badge "Pagada".
+- El desglose de pasivos del balance (`pages_handler.go: BalancePage`) lista solo pendientes.
 
 ### 11.3 Autenticación (`internal/service/auth_service.go`)
 

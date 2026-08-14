@@ -122,8 +122,43 @@ func renderTemplate(w http.ResponseWriter, name string, data interface{}) {
 		http.Error(w, "error interno del servidor", http.StatusInternalServerError)
 		return
 	}
+	for _, frag := range pageFragments[name] {
+		content, ok := tmpl.files[frag]
+		if !ok {
+			continue
+		}
+		if _, err := t.Parse(content); err != nil {
+			slog.Error("fragment parse error", "name", frag, "error", err)
+			http.Error(w, "error interno del servidor", http.StatusInternalServerError)
+			return
+		}
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := t.ExecuteTemplate(w, "layout", data); err != nil {
+		slog.Error("template error", "name", name, "error", err)
+	}
+}
+
+// renderTemplateFragment renderiza un partial aislado (sin layout) para
+// respuestas HTMX de intercambio parcial.
+func renderTemplateFragment(w http.ResponseWriter, name string, data interface{}) {
+	if tmpl == nil {
+		http.Error(w, "templates not initialized", http.StatusInternalServerError)
+		return
+	}
+	content, ok := tmpl.files[name]
+	if !ok {
+		http.Error(w, "template not found: "+name, http.StatusInternalServerError)
+		return
+	}
+	t := template.New(name).Funcs(tmpl.funcs)
+	if _, err := t.Parse(content); err != nil {
+		slog.Error("fragment parse error", "name", name, "error", err)
+		http.Error(w, "error interno del servidor", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := t.ExecuteTemplate(w, name, data); err != nil {
 		slog.Error("template error", "name", name, "error", err)
 	}
 }

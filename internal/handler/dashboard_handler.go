@@ -17,7 +17,7 @@ func NewDashboardHandler(svc *service.DashboardService) *DashboardHandler {
 
 func (h *DashboardHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 	uid := middleware.UserIDFromContext(r.Context())
-	data, err := h.svc.GetDashboard(r.Context(), uid)
+	data, err := h.svc.GetDashboard(r.Context(), uid, r.URL.Query().Get("periodo"))
 	if err != nil {
 		handleServiceError(w, err)
 		return

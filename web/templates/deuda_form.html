@@ -1,0 +1,60 @@
+{{define "deuda_form"}}
+<h2 id="form-modal-title">{{if .deuda}}Editar Deuda{{else}}Nueva Deuda{{end}}</h2>
+<form {{if .deuda}}hx-put="/api/deudas/{{.deuda.ID}}"{{else}}hx-post="/api/deudas"{{end}} hx-swap="none" method="post" action="/api/deudas">
+    <div class="form-row">
+        <div class="form-group">
+            <label>Tipo</label>
+            <select name="tipo" required>
+                <option value="tarjeta_credito" {{if and .deuda (eq .deuda.Tipo "tarjeta_credito")}}selected{{end}}>💳 Tarjeta de Crédito</option>
+                <option value="prestamo" {{if and .deuda (eq .deuda.Tipo "prestamo")}}selected{{end}}>🏦 Préstamo</option>
+                <option value="hipoteca" {{if and .deuda (eq .deuda.Tipo "hipoteca")}}selected{{end}}>🏠 Hipoteca</option>
+                <option value="personal" {{if and .deuda (eq .deuda.Tipo "personal")}}selected{{end}}>👤 Personal</option>
+                <option value="otro" {{if and .deuda (eq .deuda.Tipo "otro")}}selected{{end}}>📄 Otro</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Entidad</label>
+            <input type="text" name="entidad" required {{if .deuda}}value="{{.deuda.Entidad}}"{{end}}>
+        </div>
+    </div>
+    <div class="form-group">
+        <label>Descripción</label>
+        <input type="text" name="descripcion" {{if .deuda}}value="{{.deuda.Descripcion}}"{{end}}>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Categoría del egreso (al pagar)</label>
+            <select name="categoria_id">
+                <option value="">Sin asignar</option>
+                {{range .categorias}}
+                <option value="{{.ID}}" {{if and $.deuda (eq $.deuda.CategoriaID .ID)}}selected{{end}}>{{.Icono}} {{.Nombre}}</option>
+                {{end}}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Medio de pago</label>
+            <select name="medio_pago">
+                <option value="">Seleccionar</option>
+                <option value="efectivo" {{if and .deuda (eq .deuda.MedioPago "efectivo")}}selected{{end}}>Efectivo</option>
+                <option value="debito" {{if and .deuda (eq .deuda.MedioPago "debito")}}selected{{end}}>Débito</option>
+                <option value="credito" {{if and .deuda (eq .deuda.MedioPago "credito")}}selected{{end}}>Crédito</option>
+                <option value="transferencia" {{if and .deuda (eq .deuda.MedioPago "transferencia")}}selected{{end}}>Transferencia</option>
+            </select>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Monto Total</label>
+            <input type="number" name="monto_total" step="0.01" min="0.01" required {{if .deuda}}value="{{.deuda.MontoTotal}}"{{end}}>
+        </div>
+        <div class="form-group">
+            <label>Próximo Vencimiento</label>
+            <input type="date" name="proximo_vencimiento" {{if .deuda}}value="{{.deuda.ProximoVencimiento}}"{{end}}>
+        </div>
+    </div>
+    <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('form-modal').style.display='none'">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+    </div>
+</form>
+{{end}}

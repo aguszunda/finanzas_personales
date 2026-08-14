@@ -87,6 +87,19 @@ type Presupuesto struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+// Movimiento es una entrada del feed de "Últimos Movimientos": unifica
+// transacciones y deudas en una sola lista para el balance general.
+type Movimiento struct {
+	ID          int64     `json:"id"`
+	Origen      string    `json:"origen"` // "transaccion" | "deuda"
+	Tipo        string    `json:"tipo"`   // "ingreso" | "egreso" | "deuda"
+	Monto       float64   `json:"monto"`
+	Fecha       string    `json:"fecha"`
+	Categoria   string    `json:"categoria_nombre,omitempty"`
+	Descripcion string    `json:"descripcion"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type Deuda struct {
 	ID                 int64     `json:"id"`
 	UsuarioID          int64     `json:"usuario_id"`
@@ -94,7 +107,10 @@ type Deuda struct {
 	Entidad            string    `json:"entidad"`
 	Descripcion        string    `json:"descripcion"`
 	MontoTotal         float64   `json:"monto_total"`
+	CategoriaID        int64     `json:"categoria_id"` // categoría (egreso) default al pagar
+	MedioPago          string    `json:"medio_pago"`   // forma de pago aplicada al egreso
 	ProximoVencimiento string    `json:"proximo_vencimiento"`
+	Estado             string    `json:"estado"` // "pendiente" | "pagada"
 	CreatedAt          time.Time `json:"created_at"`
 }
 

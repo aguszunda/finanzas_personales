@@ -1,0 +1,46 @@
+{{define "deuda_pago_form"}}
+<h2>💰 Confirmar pago de "{{.deuda.Entidad}}"</h2>
+{{if .mes_cerrado}}
+<div class="alert alert-error" style="margin-bottom:1rem">
+    El mes {{.periodo_cerrado}} está cerrado. El egreso se registrará en el mes abierto <strong>{{.mes_sugerido}}</strong> — podés cambiarlo editando la fecha.
+</div>
+{{else}}
+<p style="margin-bottom:1rem;color:var(--text-secondary);font-size:0.875rem">
+    Se registrará un egreso de <strong style="color:var(--danger)">$ {{printf "%.2f" .deuda.MontoTotal}}</strong>
+    con la fecha indicada y la deuda pasará a estado "Pagada".
+</p>
+{{end}}
+<form hx-post="/api/deudas/{{.deuda.ID}}/pagar" hx-swap="none" method="post" action="/api/deudas/{{.deuda.ID}}/pagar">
+    <div class="form-row">
+        <div class="form-group">
+            <label>Categoría del egreso</label>
+            <select name="categoria_id" required>
+                {{range .categorias}}
+                <option value="{{.ID}}" {{if eq $.deuda.CategoriaID .ID}}selected{{end}}>{{.Icono}} {{.Nombre}}</option>
+                {{end}}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Fecha del egreso</label>
+            <input type="date" name="fecha" value="{{.fecha_default}}" required>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Forma de pago del egreso</label>
+            <select name="medio_pago">
+                <option value="" {{if eq $.deuda.MedioPago ""}}selected{{end}}>Seleccionar</option>
+                <option value="efectivo" {{if eq $.deuda.MedioPago "efectivo"}}selected{{end}}>Efectivo</option>
+                <option value="debito" {{if eq $.deuda.MedioPago "debito"}}selected{{end}}>Débito</option>
+                <option value="credito" {{if eq $.deuda.MedioPago "credito"}}selected{{end}}>Crédito</option>
+                <option value="transferencia" {{if eq $.deuda.MedioPago "transferencia"}}selected{{end}}>Transferencia</option>
+            </select>
+        </div>
+        <div class="form-group"></div>
+    </div>
+    <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('form-modal').style.display='none'">Cancelar</button>
+        <button type="submit" class="btn btn-success">✅ Marcar como Pagada</button>
+    </div>
+</form>
+{{end}}

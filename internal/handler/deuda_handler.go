@@ -83,3 +83,27 @@ func (h *DeudaHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// MarcarPagada recibe la categoría del egreso a registrar (opcional: si es 0
+// el servicio usa la de la deuda), la forma de pago (opcional: si está vacía
+// el servicio usa la de la deuda) y opcionalmente su fecha, y marca la deuda
+// como pagada.
+func (h *DeudaHandler) MarcarPagada(w http.ResponseWriter, r *http.Request) {
+	uid := middleware.UserIDFromContext(r.Context())
+	id, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	var input struct {
+		CategoriaID int64  `json:"categoria_id"`
+		Fecha       string `json:"fecha"`
+		MedioPago   string `json:"medio_pago"`
+	}
+	if err := decodeBody(r, &input); err != nil {
+		respondError(w, http.StatusBadRequest, "datos inválidos")
+		return
+	}
+	d, err := h.svc.MarcarPagada(r.Context(), uid, id, input.CategoriaID, input.Fecha, input.MedioPago)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	respondMutation(w, r, http.StatusOK, d, "/api/deudas/page")
+}
