@@ -1,0 +1,5 @@
+@media print {
+    nav, .no-print { display: none !important; }
+    body { background: #fff; }
+    .card { border: none; box-shadow: none; padding: 0; }
+}

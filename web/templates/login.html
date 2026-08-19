@@ -1,8 +1,11 @@
+{{define "head"}}
+<link rel="stylesheet" href="/static/css/auth.css">
+{{end}}
 {{define "content"}}
 <div class="auth-form">
     <h1>💰 Finanzas Personales</h1>
     <div class="card">
-        <h2>Iniciar Sesión</h2>
+        <h2 style="text-align:center">Iniciar Sesión</h2>
         <form hx-post="/api/auth/login" hx-swap="none" method="post" action="/api/auth/login">
             <div class="form-group">
                 <label for="email">Email</label>
@@ -12,7 +15,9 @@
                 <label for="password">Contraseña</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            <button type="submit" class="btn btn-primary" style="width:100%">Ingresar</button>
+            <div style="display:flex;justify-content:center">
+                <button type="submit" class="btn btn-primary" style="width:25%">Ingresar</button>
+            </div>
         </form>
         <p class="text-center mt-1">
             ¿No tenés cuenta? <a href="/register">Registrate</a>
