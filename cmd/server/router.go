@@ -66,6 +66,9 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	staticFS := http.FileServer(http.FS(web.StaticFS()))
+	r.Handle("/static/*", http.StripPrefix("/static", staticFS))
+
 	r.Get("/login", pagesH.LoginPage)
 	r.Get("/register", pagesH.RegisterPage)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
