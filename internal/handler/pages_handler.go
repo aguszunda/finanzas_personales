@@ -30,11 +30,11 @@ func NewPagesHandler(ds *service.DashboardService, ts *service.TransaccionServic
 }
 
 func (h *PagesHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "login", nil)
+	renderTemplate(w, "login", map[string]interface{}{"hideNav": true})
 }
 
 func (h *PagesHandler) RegisterPage(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "register", nil)
+	renderTemplate(w, "register", map[string]interface{}{"hideNav": true})
 }
 
 func (h *PagesHandler) DashboardPage(w http.ResponseWriter, r *http.Request) {

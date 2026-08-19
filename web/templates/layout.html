@@ -71,7 +71,7 @@
     </style>
 </head>
 <body hx-boost="true">
-    <nav id="main-nav">
+    <nav id="main-nav" {{if .hideNav}}style="display:none"{{end}}>
         <div class="container">
             <a href="/api/dashboard/page" class="brand">💰 Finanzas</a>
             <a href="/api/dashboard/page">Balance General</a>
