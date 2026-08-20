@@ -153,6 +153,25 @@ func TestAuthService_Register_InvalidEmail(t *testing.T) {
 	}
 }
 
+func TestAuthService_Register_InvalidPassword(t *testing.T) {
+	svc, _ := newAuthService(t)
+	invalid := []string{
+		"",
+		"corta",
+		strings.Repeat("a", 73),
+	}
+	for _, pw := range invalid {
+		_, err := svc.Register(context.Background(), RegisterInput{
+			Nombre:   "Agustin",
+			Email:    "pepe@test.com",
+			Password: pw,
+		})
+		if !errors.Is(err, model.ErrPasswordInvalido) {
+			t.Errorf("Register con password de len %d: expected ErrPasswordInvalido, got %v", len(pw), err)
+		}
+	}
+}
+
 func TestAuthService_Register_NormalizesEmail(t *testing.T) {
 	svc, mock := newAuthService(t)
 	mock.ExpectExec(regexp.QuoteMeta(queryInsertUsuario)).

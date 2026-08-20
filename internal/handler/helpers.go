@@ -214,6 +214,8 @@ func handleServiceError(w http.ResponseWriter, err error) {
 		respondError(w, http.StatusUnauthorized, "la contraseña es incorrecta")
 	case errors.Is(err, model.ErrEmailInvalido):
 		respondError(w, http.StatusBadRequest, "el email no es válido")
+	case errors.Is(err, model.ErrPasswordInvalido):
+		respondError(w, http.StatusBadRequest, "la contraseña debe tener entre 8 y 72 caracteres")
 	case errors.Is(err, model.ErrInvalidInput):
 		respondError(w, http.StatusBadRequest, "datos inválidos")
 	case errors.Is(err, model.ErrEmailExiste):

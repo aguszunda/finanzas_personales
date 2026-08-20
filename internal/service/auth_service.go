@@ -18,6 +18,20 @@ var emailRe = regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_\x60{|}~-]+@[a-zA-Z0-
 
 const maxEmailLen = 254
 
+const (
+	minPasswordLen = 8
+	maxPasswordLen = 72
+)
+
+// validatePassword exige una longitud mínima y un tope de 72 bytes, el
+// límite que bcrypt acepta sin truncar silenciosamente la contraseña.
+func validatePassword(pw string) error {
+	if pw == "" || len(pw) < minPasswordLen || len(pw) > maxPasswordLen {
+		return model.ErrPasswordInvalido
+	}
+	return nil
+}
+
 // normalizeEmail valida el formato y normaliza (trim + lowercase) antes de
 // guardar o buscar, evitando duplicados por mayúsculas o espacios.
 func normalizeEmail(email string) (string, error) {
@@ -56,8 +70,11 @@ type AuthResponse struct {
 }
 
 func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthResponse, error) {
-	if input.Nombre == "" || input.Password == "" {
+	if input.Nombre == "" {
 		return nil, model.ErrInvalidInput
+	}
+	if err := validatePassword(input.Password); err != nil {
+		return nil, err
 	}
 	email, err := normalizeEmail(input.Email)
 	if err != nil {

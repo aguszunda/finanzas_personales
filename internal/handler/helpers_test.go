@@ -155,6 +155,7 @@ func TestHandleServiceError_Mapping(t *testing.T) {
 		{model.ErrEmailNoExiste, http.StatusNotFound},
 		{model.ErrUnauthorized, http.StatusUnauthorized},
 		{model.ErrEmailInvalido, http.StatusBadRequest},
+		{model.ErrPasswordInvalido, http.StatusBadRequest},
 		{model.ErrInvalidInput, http.StatusBadRequest},
 		{model.ErrEmailExiste, http.StatusConflict},
 		{model.ErrMesCerrado, http.StatusConflict},
