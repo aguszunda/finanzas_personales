@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"finanzas_personales/internal/middleware"
-	"finanzas_personales/internal/model"
+	"optipay/internal/middleware"
+	"optipay/internal/model"
 )
 
 // decodeBody decodes a request body into dst, accepting both JSON and

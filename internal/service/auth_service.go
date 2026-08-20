@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"finanzas_personales/internal/model"
-	"finanzas_personales/internal/repository"
+	"optipay/internal/model"
+	"optipay/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"

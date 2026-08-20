@@ -1,4 +1,4 @@
-# Docker Compose para el entorno de desarrollo de finanzas_personales.
+# Docker Compose para el entorno de desarrollo de optipay.
 #
 # Levanta los servicios que necesita la app:
 #   - db:      MySQL 8.4 LTS con la base `finanzas` (utf8mb4 / utf8mb4_unicode_ci)

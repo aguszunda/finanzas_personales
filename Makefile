@@ -33,10 +33,10 @@ migrate-down:
 	go run -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION) -source file://migrations -database "mysql://$(DATABASE_URL)" down
 
 docker-build:
-	docker build -t finanzas-personales .
+	docker build -t optipay .
 
 docker-run:
-	docker run -p 8080:8080 --env-file env.secrets finanzas-personales
+	docker run -p 8080:8080 --env-file env.secrets optipay
 
 docker-up:
 	docker compose --env-file env.secrets up -d --build

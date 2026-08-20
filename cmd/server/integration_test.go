@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"finanzas_personales/internal/config"
+	"optipay/internal/config"
 
 	"github.com/go-sql-driver/mysql"
 )

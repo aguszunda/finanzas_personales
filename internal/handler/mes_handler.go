@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"finanzas_personales/internal/middleware"
-	"finanzas_personales/internal/service"
+	"optipay/internal/middleware"
+	"optipay/internal/service"
 
 	"github.com/go-chi/chi/v5"
 )

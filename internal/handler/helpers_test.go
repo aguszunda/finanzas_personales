@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"finanzas_personales/internal/middleware"
-	"finanzas_personales/internal/model"
+	"optipay/internal/middleware"
+	"optipay/internal/model"
 )
 
 type testPayload struct {

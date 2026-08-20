@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"finanzas_personales/internal/model"
+	"optipay/internal/model"
 
 	"github.com/golang-jwt/jwt/v5"
 )

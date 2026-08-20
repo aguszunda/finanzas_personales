@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"time"
 
-	"finanzas_personales/internal/config"
-	"finanzas_personales/internal/handler"
-	"finanzas_personales/internal/middleware"
-	"finanzas_personales/internal/repository"
-	"finanzas_personales/internal/service"
-	"finanzas_personales/web"
+	"optipay/internal/config"
+	"optipay/internal/handler"
+	"optipay/internal/middleware"
+	"optipay/internal/repository"
+	"optipay/internal/service"
+	"optipay/web"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
