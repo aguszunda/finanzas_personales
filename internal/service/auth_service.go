@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"regexp"
+	"strings"
 	"time"
 
 	"finanzas_personales/internal/model"
@@ -10,6 +12,21 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// emailRe exige estructura RFC 5322 básica y dominio con TLD (ej: nombre@dominio.com).
+var emailRe = regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_\x60{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$`)
+
+const maxEmailLen = 254
+
+// normalizeEmail valida el formato y normaliza (trim + lowercase) antes de
+// guardar o buscar, evitando duplicados por mayúsculas o espacios.
+func normalizeEmail(email string) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" || len(email) > maxEmailLen || !emailRe.MatchString(email) {
+		return "", model.ErrEmailInvalido
+	}
+	return email, nil
+}
 
 type AuthService struct {
 	usuarioRepo   *repository.UsuarioRepo
@@ -39,8 +56,12 @@ type AuthResponse struct {
 }
 
 func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthResponse, error) {
-	if input.Nombre == "" || input.Email == "" || input.Password == "" {
+	if input.Nombre == "" || input.Password == "" {
 		return nil, model.ErrInvalidInput
+	}
+	email, err := normalizeEmail(input.Email)
+	if err != nil {
+		return nil, err
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -51,7 +72,7 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 	}
 	u := &model.Usuario{
 		Nombre:        input.Nombre,
-		Email:         input.Email,
+		Email:         email,
 		PasswordHash:  string(hash),
 		MonedaDefault: input.MonedaDefault,
 	}
@@ -66,10 +87,14 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthR
 }
 
 func (s *AuthService) Login(ctx context.Context, input LoginInput) (*AuthResponse, error) {
-	if input.Email == "" || input.Password == "" {
+	if input.Password == "" {
 		return nil, model.ErrInvalidInput
 	}
-	u, err := s.usuarioRepo.FindByEmail(ctx, input.Email)
+	email, err := normalizeEmail(input.Email)
+	if err != nil {
+		return nil, err
+	}
+	u, err := s.usuarioRepo.FindByEmail(ctx, email)
 	if err != nil {
 		return nil, model.ErrEmailNoExiste
 	}

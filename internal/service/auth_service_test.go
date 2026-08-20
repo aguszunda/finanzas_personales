@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,6 +125,58 @@ func TestAuthService_Register_DuplicateEmail(t *testing.T) {
 	})
 	if !errors.Is(err, model.ErrEmailExiste) {
 		t.Fatalf("expected ErrEmailExiste, got %v", err)
+	}
+}
+
+func TestAuthService_Register_InvalidEmail(t *testing.T) {
+	svc, _ := newAuthService(t)
+	invalid := []string{
+		"xxx@xx",
+		"sin-arroba",
+		"a@",
+		"@dominio.com",
+		"a b@test.com",
+		"a@test",
+		"a@test..com",
+		"a@.com",
+		strings.Repeat("a", 246) + "@test.com",
+	}
+	for _, email := range invalid {
+		_, err := svc.Register(context.Background(), RegisterInput{
+			Nombre:   "Agustin",
+			Email:    email,
+			Password: "secreto123",
+		})
+		if !errors.Is(err, model.ErrEmailInvalido) {
+			t.Errorf("Register con email %q: expected ErrEmailInvalido, got %v", email, err)
+		}
+	}
+}
+
+func TestAuthService_Register_NormalizesEmail(t *testing.T) {
+	svc, mock := newAuthService(t)
+	mock.ExpectExec(regexp.QuoteMeta(queryInsertUsuario)).
+		WithArgs("Agustin", "pepe@test.com", sqlmock.AnyArg(), "ARS").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	resp, err := svc.Register(context.Background(), RegisterInput{
+		Nombre:   "Agustin",
+		Email:    "  Pepe@Test.COM  ",
+		Password: "secreto123",
+	})
+	if err != nil {
+		t.Fatalf("Register returned error: %v", err)
+	}
+	if resp.Usuario.Email != "pepe@test.com" {
+		t.Errorf("expected normalized email %q, got %q", "pepe@test.com", resp.Usuario.Email)
+	}
+}
+
+func TestAuthService_Login_InvalidEmail(t *testing.T) {
+	svc, _ := newAuthService(t)
+	_, err := svc.Login(context.Background(), LoginInput{Email: "xxx@xx", Password: "secreto123"})
+	if !errors.Is(err, model.ErrEmailInvalido) {
+		t.Fatalf("expected ErrEmailInvalido, got %v", err)
 	}
 }
 

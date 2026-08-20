@@ -11,4 +11,5 @@ var (
 	ErrForbidden     = errors.New("acceso denegado")
 	ErrEmailExiste   = errors.New("el email ya está registrado")
 	ErrEmailNoExiste = errors.New("el email no está registrado")
+	ErrEmailInvalido = errors.New("el email no es válido")
 )
