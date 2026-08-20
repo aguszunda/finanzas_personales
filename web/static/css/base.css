@@ -32,6 +32,13 @@ nav .brand {
     text-decoration: none;
 }
 
+nav .brand img {
+    height: 28px;
+    width: auto;
+    vertical-align: middle;
+    margin-right: 0.5rem;
+}
+
 nav a {
     color: var(--text);
     text-decoration: none;

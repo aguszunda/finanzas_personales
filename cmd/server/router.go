@@ -69,6 +69,9 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 	staticFS := http.FileServer(http.FS(web.StaticFS()))
 	r.Handle("/static/*", http.StripPrefix("/static", staticFS))
 
+	imagesFS := http.FileServer(http.FS(web.ImagesFS()))
+	r.Handle("/images/*", http.StripPrefix("/images", imagesFS))
+
 	r.Get("/login", pagesH.LoginPage)
 	r.Get("/register", pagesH.RegisterPage)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
