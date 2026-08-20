@@ -208,8 +208,10 @@ func handleServiceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, model.ErrNotFound):
 		respondError(w, http.StatusNotFound, "recurso no encontrado")
+	case errors.Is(err, model.ErrEmailNoExiste):
+		respondError(w, http.StatusNotFound, "el email no está registrado")
 	case errors.Is(err, model.ErrUnauthorized):
-		respondError(w, http.StatusUnauthorized, "email o contraseña inválidos")
+		respondError(w, http.StatusUnauthorized, "la contraseña es incorrecta")
 	case errors.Is(err, model.ErrInvalidInput):
 		respondError(w, http.StatusBadRequest, "datos inválidos")
 	case errors.Is(err, model.ErrEmailExiste):

@@ -152,6 +152,7 @@ func TestHandleServiceError_Mapping(t *testing.T) {
 		wantCode int
 	}{
 		{model.ErrNotFound, http.StatusNotFound},
+		{model.ErrEmailNoExiste, http.StatusNotFound},
 		{model.ErrUnauthorized, http.StatusUnauthorized},
 		{model.ErrInvalidInput, http.StatusBadRequest},
 		{model.ErrEmailExiste, http.StatusConflict},

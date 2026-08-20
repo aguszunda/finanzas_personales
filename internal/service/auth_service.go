@@ -71,7 +71,7 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*AuthRespons
 	}
 	u, err := s.usuarioRepo.FindByEmail(ctx, input.Email)
 	if err != nil {
-		return nil, model.ErrUnauthorized
+		return nil, model.ErrEmailNoExiste
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(input.Password)); err != nil {
 		return nil, model.ErrUnauthorized

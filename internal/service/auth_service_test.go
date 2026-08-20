@@ -172,8 +172,8 @@ func TestAuthService_Login_UnknownEmail(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	_, err := svc.Login(context.Background(), LoginInput{Email: "nobody@test.com", Password: "x"})
-	if !errors.Is(err, model.ErrUnauthorized) {
-		t.Fatalf("expected ErrUnauthorized, got %v", err)
+	if !errors.Is(err, model.ErrEmailNoExiste) {
+		t.Fatalf("expected ErrEmailNoExiste, got %v", err)
 	}
 }
 
