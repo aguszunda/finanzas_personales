@@ -3,7 +3,7 @@
 {{end}}
 {{define "content"}}
 <div class="auth-form">
-    <h1>💰 Finanzas Personales</h1>
+    <h1 class="auth-logo"><img src="/images/logo_optipay.png" alt="Optipay"><a> Optipay</a></h1>
     <div class="card">
         <h2>Crear Cuenta</h2>
         <form hx-post="/api/auth/register" hx-swap="none" method="post" action="/api/auth/register">
@@ -17,7 +17,7 @@
             </div>
             <div class="form-group">
                 <label for="password">Contraseña</label>
-                <input type="password" id="password" name="password" required minlength="6">
+                <input type="password" id="password" name="password" required autocomplete="new-password">
             </div>
             <div class="form-group">
                 <label for="moneda_default">Moneda</label>

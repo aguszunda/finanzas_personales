@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"finanzas_personales/internal/model"
+	"optipay/internal/model"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )

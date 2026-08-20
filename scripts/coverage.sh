@@ -35,7 +35,7 @@ go test ./... -coverpkg=./... -coverprofile="$COVERAGE_OUT" >/dev/null
 echo "==> Filtrando archivos del ignore ($IGNORE_FILE)..."
 
 # Arma un grep -E con los patrones del ignore (uno por línea, `#` = comentario).
-# Los paths del profile llevan el prefijo del módulo (`finanzas_personales/...`),
+# Los paths del profile llevan el prefijo del módulo (`optipay/...`),
 # así que un patrón anclado con `^` se reescribe a `(^|/)` para que siga
 # matcheando tras el prefijo.
 grep_args=()

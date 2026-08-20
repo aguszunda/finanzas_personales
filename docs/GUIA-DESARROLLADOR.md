@@ -607,7 +607,10 @@ Los errores de negocio viven en `internal/model/errors.go` como variables tipada
 | Error de dominio | HTTP resultante | Caso |
 |------------------|-----------------|------|
 | `ErrNotFound` | 404 | no existe el recurso |
-| `ErrUnauthorized` | 401 | email/contraseña mal |
+| `ErrEmailNoExiste` | 404 | login con email no registrado |
+| `ErrUnauthorized` | 401 | contraseña incorrecta |
+| `ErrEmailInvalido` | 400 | email con formato inválido |
+| `ErrPasswordInvalido` | 400 | contraseña fuera del rango 8-72 |
 | `ErrInvalidInput` | 400 | datos inválidos |
 | `ErrEmailExiste` | 409 | email ya registrado |
 | `ErrMesCerrado` | 409 | editar un mes cerrado |

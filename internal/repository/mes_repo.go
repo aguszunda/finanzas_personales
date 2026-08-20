@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"finanzas_personales/internal/model"
+	"optipay/internal/model"
 )
 
 type MesRepo struct {

@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanzas Personales</title>
+    <title>Optipay</title>
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/print.css" media="print">
     {{block "head" .}}{{end}}
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="/static/js/form-validation.js" defer></script>
 </head>
 <body hx-boost="true">
     {{if not .hideNav}}
     <nav id="main-nav">
         <div class="container">
-            <a href="/api/dashboard/page" class="brand">💰 Finanzas</a>
+            <a href="/api/dashboard/page" class="brand"><img src="/images/logo_optipay.png" alt="Optipay"> Optipay</a>
             <a href="/api/dashboard/page">Balance General</a>
             <a href="/api/transacciones/page">Transacciones</a>
             <a href="/api/costos-fijos/page">Costos Fijos</a>
@@ -38,10 +39,65 @@
             if (target) target.classList.remove('loading');
         });
         document.body.addEventListener('htmx:responseError', function(evt) {
-            var text = evt.detail.xhr.responseText || 'Error del servidor';
+            var xhr = evt.detail.xhr;
+            var text = xhr.responseText || 'Error del servidor';
             try { text = JSON.parse(text).error || text; } catch(e) {}
-            alert('Error: ' + text);
+            var action = null;
+            var path = (evt.detail.pathInfo && evt.detail.pathInfo.requestPath) || '';
+            if (path.indexOf('/login') !== -1 && xhr.status === 404) {
+                action = { href: '/register', label: 'Registrate' };
+            } else if (path.indexOf('/login') !== -1 && xhr.status === 401) {
+                var pw = document.getElementById('password');
+                if (pw) pw.value = '';
+            }
+            showAlertModal(text, 'error', action);
+        });
+        function showAlertModal(message, type, action) {
+            type = type || 'error';
+            var modal = document.getElementById('alert-modal');
+            if (!modal) return;
+            ['error', 'success', 'warning', 'info'].forEach(function(v) {
+                modal.classList.remove('modal-' + v);
+            });
+            modal.classList.add('modal-' + type);
+            var titles = { error: 'Error', success: 'Listo', warning: 'Atención', info: 'Información' };
+            var icons = { error: '❌', success: '✅', warning: '⚠️', info: 'ℹ️' };
+            document.getElementById('alert-modal-title').textContent =
+                (icons[type] || '') + ' ' + (titles[type] || 'Error');
+            document.getElementById('alert-modal-message').textContent = message;
+            var actionWrap = document.getElementById('alert-modal-action-wrap');
+            var actionLink = document.getElementById('alert-modal-action');
+            if (action) {
+                actionLink.href = action.href;
+                actionLink.textContent = action.label;
+                actionWrap.style.display = '';
+            } else {
+                actionLink.removeAttribute('href');
+                actionWrap.style.display = 'none';
+            }
+            modal.style.display = 'flex';
+            document.getElementById('alert-modal-close').focus();
+        }
+        function closeAlertModal() {
+            var modal = document.getElementById('alert-modal');
+            if (modal) modal.style.display = 'none';
+        }
+        document.addEventListener('keydown', function(evt) {
+            if (evt.key === 'Escape') closeAlertModal();
         });
     </script>
+    <div id="alert-modal" class="modal-overlay" style="display:none"
+         onclick="if(event.target===this)this.style.display='none'">
+        <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="alert-modal-title">
+            <h2 id="alert-modal-title"></h2>
+            <p id="alert-modal-message" style="margin-bottom:1rem;color:var(--text-secondary)"></p>
+            <p id="alert-modal-action-wrap" style="margin-bottom:1rem;display:none">
+                <a id="alert-modal-action" href="/register"></a>
+            </p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-primary" id="alert-modal-close" onclick="closeAlertModal()">Entendido</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

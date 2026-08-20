@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"finanzas_personales/internal/middleware"
-	"finanzas_personales/internal/model"
+	"optipay/internal/middleware"
+	"optipay/internal/model"
 )
 
 // decodeBody decodes a request body into dst, accepting both JSON and
@@ -208,8 +208,14 @@ func handleServiceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, model.ErrNotFound):
 		respondError(w, http.StatusNotFound, "recurso no encontrado")
+	case errors.Is(err, model.ErrEmailNoExiste):
+		respondError(w, http.StatusNotFound, "el email no está registrado")
 	case errors.Is(err, model.ErrUnauthorized):
-		respondError(w, http.StatusUnauthorized, "email o contraseña inválidos")
+		respondError(w, http.StatusUnauthorized, "la contraseña es incorrecta")
+	case errors.Is(err, model.ErrEmailInvalido):
+		respondError(w, http.StatusBadRequest, "el email no es válido")
+	case errors.Is(err, model.ErrPasswordInvalido):
+		respondError(w, http.StatusBadRequest, "la contraseña debe tener entre 8 y 72 caracteres")
 	case errors.Is(err, model.ErrInvalidInput):
 		respondError(w, http.StatusBadRequest, "datos inválidos")
 	case errors.Is(err, model.ErrEmailExiste):

@@ -1,4 +1,4 @@
-module finanzas_personales
+module optipay
 
 go 1.25.13
 

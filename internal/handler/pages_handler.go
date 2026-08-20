@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"finanzas_personales/internal/middleware"
-	"finanzas_personales/internal/model"
-	"finanzas_personales/internal/repository"
-	"finanzas_personales/internal/service"
+	"optipay/internal/middleware"
+	"optipay/internal/model"
+	"optipay/internal/repository"
+	"optipay/internal/service"
 
 	"github.com/go-chi/chi/v5"
 )

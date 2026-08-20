@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
-	"finanzas_personales/internal/model"
-	"finanzas_personales/internal/repository"
+	"optipay/internal/model"
+	"optipay/internal/repository"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-sql-driver/mysql"
@@ -127,6 +128,77 @@ func TestAuthService_Register_DuplicateEmail(t *testing.T) {
 	}
 }
 
+func TestAuthService_Register_InvalidEmail(t *testing.T) {
+	svc, _ := newAuthService(t)
+	invalid := []string{
+		"xxx@xx",
+		"sin-arroba",
+		"a@",
+		"@dominio.com",
+		"a b@test.com",
+		"a@test",
+		"a@test..com",
+		"a@.com",
+		strings.Repeat("a", 246) + "@test.com",
+	}
+	for _, email := range invalid {
+		_, err := svc.Register(context.Background(), RegisterInput{
+			Nombre:   "Agustin",
+			Email:    email,
+			Password: "secreto123",
+		})
+		if !errors.Is(err, model.ErrEmailInvalido) {
+			t.Errorf("Register con email %q: expected ErrEmailInvalido, got %v", email, err)
+		}
+	}
+}
+
+func TestAuthService_Register_InvalidPassword(t *testing.T) {
+	svc, _ := newAuthService(t)
+	invalid := []string{
+		"",
+		"corta",
+		strings.Repeat("a", 73),
+	}
+	for _, pw := range invalid {
+		_, err := svc.Register(context.Background(), RegisterInput{
+			Nombre:   "Agustin",
+			Email:    "pepe@test.com",
+			Password: pw,
+		})
+		if !errors.Is(err, model.ErrPasswordInvalido) {
+			t.Errorf("Register con password de len %d: expected ErrPasswordInvalido, got %v", len(pw), err)
+		}
+	}
+}
+
+func TestAuthService_Register_NormalizesEmail(t *testing.T) {
+	svc, mock := newAuthService(t)
+	mock.ExpectExec(regexp.QuoteMeta(queryInsertUsuario)).
+		WithArgs("Agustin", "pepe@test.com", sqlmock.AnyArg(), "ARS").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	resp, err := svc.Register(context.Background(), RegisterInput{
+		Nombre:   "Agustin",
+		Email:    "  Pepe@Test.COM  ",
+		Password: "secreto123",
+	})
+	if err != nil {
+		t.Fatalf("Register returned error: %v", err)
+	}
+	if resp.Usuario.Email != "pepe@test.com" {
+		t.Errorf("expected normalized email %q, got %q", "pepe@test.com", resp.Usuario.Email)
+	}
+}
+
+func TestAuthService_Login_InvalidEmail(t *testing.T) {
+	svc, _ := newAuthService(t)
+	_, err := svc.Login(context.Background(), LoginInput{Email: "xxx@xx", Password: "secreto123"})
+	if !errors.Is(err, model.ErrEmailInvalido) {
+		t.Fatalf("expected ErrEmailInvalido, got %v", err)
+	}
+}
+
 func TestAuthService_Login_Valid(t *testing.T) {
 	svc, mock := newAuthService(t)
 	hash, _ := bcrypt.GenerateFromPassword([]byte("secreto123"), bcrypt.MinCost)
@@ -172,8 +244,8 @@ func TestAuthService_Login_UnknownEmail(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	_, err := svc.Login(context.Background(), LoginInput{Email: "nobody@test.com", Password: "x"})
-	if !errors.Is(err, model.ErrUnauthorized) {
-		t.Fatalf("expected ErrUnauthorized, got %v", err)
+	if !errors.Is(err, model.ErrEmailNoExiste) {
+		t.Fatalf("expected ErrEmailNoExiste, got %v", err)
 	}
 }
 

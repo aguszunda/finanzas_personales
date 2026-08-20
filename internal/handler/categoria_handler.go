@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"finanzas_personales/internal/middleware"
-	"finanzas_personales/internal/repository"
+	"optipay/internal/middleware"
+	"optipay/internal/repository"
 )
 
 type CategoriaHandler struct {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"finanzas_personales/internal/model"
+	"optipay/internal/model"
 )
 
 type CategoriaRepo struct {

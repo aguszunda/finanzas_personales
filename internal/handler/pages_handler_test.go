@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"finanzas_personales/internal/model"
+	"optipay/internal/model"
 )
 
 func TestPrimerMesAbierto(t *testing.T) {

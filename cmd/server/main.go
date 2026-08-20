@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"finanzas_personales/internal/config"
+	"optipay/internal/config"
 
 	_ "github.com/go-sql-driver/mysql"
 )

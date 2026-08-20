@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"finanzas_personales/internal/model"
+	"optipay/internal/model"
 )
 
 type DeudaRepo struct {
