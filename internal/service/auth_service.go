@@ -23,10 +23,31 @@ const (
 	maxPasswordLen = 72
 )
 
-// validatePassword exige una longitud mínima y un tope de 72 bytes, el
-// límite que bcrypt acepta sin truncar silenciosamente la contraseña.
+// passwordRe restringe la contraseña al alfabeto alfanumérico ASCII:
+// rechaza espacios, símbolos y letras fuera de a-z / A-Z / 0-9.
+var passwordRe = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+
+// validatePassword exige longitud entre 8 y 72 bytes (el límite que bcrypt
+// acepta sin truncar silenciosamente), solo caracteres alfanuméricos y al
+// menos una letra y un número, para descartar contraseñas triviales como
+// "12345678" o "aaaaaaaa".
 func validatePassword(pw string) error {
 	if pw == "" || len(pw) < minPasswordLen || len(pw) > maxPasswordLen {
+		return model.ErrPasswordInvalido
+	}
+	if !passwordRe.MatchString(pw) {
+		return model.ErrPasswordInvalido
+	}
+	var hasLetra, hasDigito bool
+	for _, c := range pw {
+		switch {
+		case (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'):
+			hasLetra = true
+		case c >= '0' && c <= '9':
+			hasDigito = true
+		}
+	}
+	if !hasLetra || !hasDigito {
 		return model.ErrPasswordInvalido
 	}
 	return nil

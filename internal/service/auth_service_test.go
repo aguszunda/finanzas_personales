@@ -158,6 +158,11 @@ func TestAuthService_Register_InvalidPassword(t *testing.T) {
 	invalid := []string{
 		"",
 		"corta",
+		"12345678",    // solo números
+		"abcdefgh",    // solo letras
+		"secreto1!",   // carácter especial
+		"clave uno1",  // espacio
+		"contraseñá1", // fuera del alfabeto alfanumérico ASCII
 		strings.Repeat("a", 73),
 	}
 	for _, pw := range invalid {
@@ -167,7 +172,7 @@ func TestAuthService_Register_InvalidPassword(t *testing.T) {
 			Password: pw,
 		})
 		if !errors.Is(err, model.ErrPasswordInvalido) {
-			t.Errorf("Register con password de len %d: expected ErrPasswordInvalido, got %v", len(pw), err)
+			t.Errorf("Register con password %q: expected ErrPasswordInvalido, got %v", pw, err)
 		}
 	}
 }

@@ -7,8 +7,17 @@
     'use strict';
 
     var EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+    var PASSWORD_RE = /^[a-zA-Z0-9]+$/;
     var MIN_PASSWORD = 8;
     var MAX_PASSWORD = 72;
+
+    // Espejo de validatePassword (auth_service.go): longitud 8-72, solo
+    // alfanumérico ASCII y al menos una letra y un número.
+    function isValidPassword(pw) {
+        if (pw.length < MIN_PASSWORD || pw.length > MAX_PASSWORD) return false;
+        if (!PASSWORD_RE.test(pw)) return false;
+        return /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw);
+    }
 
     function isAuthRequest(path) {
         return path.indexOf('/api/auth/login') !== -1 ||
@@ -32,9 +41,9 @@
 
         var isRegister = path.indexOf('/register') !== -1;
         var password = form.querySelector('input[name="password"]');
-        if (isRegister && password && (password.value.length < MIN_PASSWORD || password.value.length > MAX_PASSWORD)) {
+        if (isRegister && password && !isValidPassword(password.value)) {
             evt.preventDefault();
-            showAlertModal('La contraseña debe tener entre ' + MIN_PASSWORD + ' y ' + MAX_PASSWORD + ' caracteres', 'error');
+            showAlertModal('La contraseña debe tener entre ' + MIN_PASSWORD + ' y ' + MAX_PASSWORD + ' caracteres y contener solo letras y números', 'error');
             password.focus();
         }
     });
