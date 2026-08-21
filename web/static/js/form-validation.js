@@ -24,6 +24,15 @@
             path.indexOf('/api/auth/register') !== -1;
     }
 
+    // Cancela el request y revierte el .loading que el listener global de
+    // layout.html agregó en beforeRequest: al prevenir el evento htmx no
+    // dispara afterRequest, así que sin esto la página queda opacada.
+    function cancelRequest(evt) {
+        evt.preventDefault();
+        var target = evt.detail.target;
+        if (target) target.classList.remove('loading');
+    }
+
     document.addEventListener('htmx:beforeRequest', function(evt) {
         var path = (evt.detail.pathInfo && evt.detail.pathInfo.requestPath) || '';
         if (!isAuthRequest(path)) return;
@@ -33,7 +42,7 @@
 
         var email = form.querySelector('input[name="email"]');
         if (email && !EMAIL_RE.test(email.value)) {
-            evt.preventDefault();
+            cancelRequest(evt);
             showAlertModal('El email no es válido. Ej: nombre@dominio.com', 'error');
             email.focus();
             return;
@@ -42,8 +51,9 @@
         var isRegister = path.indexOf('/register') !== -1;
         var password = form.querySelector('input[name="password"]');
         if (isRegister && password && !isValidPassword(password.value)) {
-            evt.preventDefault();
-            showAlertModal('La contraseña debe tener entre ' + MIN_PASSWORD + ' y ' + MAX_PASSWORD + ' caracteres y contener solo letras y números', 'error');
+            cancelRequest(evt);
+            password.value = '';
+            showAlertModal('La contraseña debe tener entre ' + MIN_PASSWORD + ' y ' + MAX_PASSWORD + ' caracteres, contener solo letras y números y no incluir espacios ni caracteres especiales', 'error');
             password.focus();
         }
     });

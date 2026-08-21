@@ -16,16 +16,16 @@ import (
 // emailRe exige estructura RFC 5322 básica y dominio con TLD (ej: nombre@dominio.com).
 var emailRe = regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_\x60{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$`)
 
+// passwordRe restringe la contraseña al alfabeto alfanumérico ASCII:
+// rechaza espacios, símbolos y letras fuera de a-z / A-Z / 0-9.
+var passwordRe = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+
 const maxEmailLen = 254
 
 const (
 	minPasswordLen = 8
 	maxPasswordLen = 72
 )
-
-// passwordRe restringe la contraseña al alfabeto alfanumérico ASCII:
-// rechaza espacios, símbolos y letras fuera de a-z / A-Z / 0-9.
-var passwordRe = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
 
 // validatePassword exige longitud entre 8 y 72 bytes (el límite que bcrypt
 // acepta sin truncar silenciosamente), solo caracteres alfanuméricos y al
