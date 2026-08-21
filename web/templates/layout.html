@@ -85,6 +85,28 @@
         document.addEventListener('keydown', function(evt) {
             if (evt.key === 'Escape') closeAlertModal();
         });
+        document.addEventListener('click', function(evt) {
+            var btn = evt.target.closest ? evt.target.closest('.password-toggle') : null;
+            if (!btn) return;
+            var wrap = btn.closest('.password-wrap');
+            var input = wrap && wrap.querySelector('input');
+            if (!input) return;
+            var show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            // Los íconos son SVGElement: la propiedad .hidden no existe ahí,
+            // hay que manipular el atributo (oculto vía css svg[hidden]).
+            var eye = btn.querySelector('.icon-eye');
+            var eyeOff = btn.querySelector('.icon-eye-off');
+            if (show) {
+                eye.setAttribute('hidden', '');
+                eyeOff.removeAttribute('hidden');
+            } else {
+                eye.removeAttribute('hidden');
+                eyeOff.setAttribute('hidden', '');
+            }
+            btn.setAttribute('aria-pressed', String(show));
+            btn.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+        });
     </script>
     <div id="alert-modal" class="modal-overlay" style="display:none"
          onclick="if(event.target===this)this.style.display='none'">

@@ -639,6 +639,25 @@ make db-init                  # crea la base (si falta) y aplica migrations/*.up
 make run                      # compila y corre en :8080 (la app NO migra sola)
 ```
 
+**Correr en local con el stack de Docker levantado:** si `docker compose` está arriba,
+el contenedor `finanzas-app-1` ocupa el puerto 8080 y `make run` falla con
+`bind: address already in use` (además, ese contenedor sirve una imagen vieja). Detené
+solo el contenedor de la app; la base MySQL sigue viva en `127.0.0.1:3307`:
+
+```bash
+docker stop finanzas-app-1          # libera el :8080 (la DB queda corriendo)
+set -a; source env.secrets; set +a  # cargar secretos ANTES de correr
+make run                            # compila y corre en :8080
+```
+
+Para volver al stack de Docker: `docker start finanzas-app-1` (o `make docker-up`,
+que reconstruye la imagen con los cambios actuales).
+
+> ⚠️ **Templates, JS e imágenes embebidos:** todo `web/` va dentro del binario vía
+> `//go:embed` (`web/embed.go`). Si cambiás un `.html`, `.css` o `.js` y no ves el
+> cambio, casi seguro estás mirando un binario viejo: recompilá (`make run`) y
+> verificá que no quede otro server escuchando en :8080 (`lsof -nP -iTCP:8080 -sTCP:LISTEN`).
+
 ### 13.2 Flujo típico para agregar una feature
 
 Siguiendo el patrón del proyecto, para agregar algo nuevo (ej. "metas de ahorro"):
@@ -672,6 +691,9 @@ go vet ./...   # análisis estático
 | "No veo mis datos" | Todas las queries filtran por `usuario_id`; usá el userID que sale del JWT |
 | "El form no hace nada" | Falta el header `HX-Request` → la app responde como JSON/redirect |
 | "No puedo editar una transacción" | El mes está `cerrado` → es inmutable a propósito |
+| `make run`: "JWT_SECRET requerida" | El Makefile no carga `env.secrets`. Exportalo antes: `set -a; source env.secrets; set +a` — **nunca** `export $(cat env.secrets)`, el `&` del DSN de MySQL rompe el parseo del shell |
+| `make run`: "address already in use" | El :8080 lo tiene el contenedor Docker `finanzas-app-1`. `docker stop finanzas-app-1` y volvé a correr (ver sección 13.1) |
+| "No veo mis cambios de UI" | Los templates/JS están embebidos en el binario: recompilá (`make run`) y asegurate de que no haya una instancia vieja sirviendo en :8080 |
 
 ---
 
