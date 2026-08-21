@@ -7,12 +7,30 @@
     'use strict';
 
     var EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+    var PASSWORD_RE = /^[a-zA-Z0-9]+$/;
     var MIN_PASSWORD = 8;
     var MAX_PASSWORD = 72;
+
+    // Espejo de validatePassword (auth_service.go): longitud 8-72, solo
+    // alfanumérico ASCII y al menos una letra y un número.
+    function isValidPassword(pw) {
+        if (pw.length < MIN_PASSWORD || pw.length > MAX_PASSWORD) return false;
+        if (!PASSWORD_RE.test(pw)) return false;
+        return /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw);
+    }
 
     function isAuthRequest(path) {
         return path.indexOf('/api/auth/login') !== -1 ||
             path.indexOf('/api/auth/register') !== -1;
+    }
+
+    // Cancela el request y revierte el .loading que el listener global de
+    // layout.html agregó en beforeRequest: al prevenir el evento htmx no
+    // dispara afterRequest, así que sin esto la página queda opacada.
+    function cancelRequest(evt) {
+        evt.preventDefault();
+        var target = evt.detail.target;
+        if (target) target.classList.remove('loading');
     }
 
     document.addEventListener('htmx:beforeRequest', function(evt) {
@@ -24,7 +42,7 @@
 
         var email = form.querySelector('input[name="email"]');
         if (email && !EMAIL_RE.test(email.value)) {
-            evt.preventDefault();
+            cancelRequest(evt);
             showAlertModal('El email no es válido. Ej: nombre@dominio.com', 'error');
             email.focus();
             return;
@@ -32,9 +50,10 @@
 
         var isRegister = path.indexOf('/register') !== -1;
         var password = form.querySelector('input[name="password"]');
-        if (isRegister && password && (password.value.length < MIN_PASSWORD || password.value.length > MAX_PASSWORD)) {
-            evt.preventDefault();
-            showAlertModal('La contraseña debe tener entre ' + MIN_PASSWORD + ' y ' + MAX_PASSWORD + ' caracteres', 'error');
+        if (isRegister && password && !isValidPassword(password.value)) {
+            cancelRequest(evt);
+            password.value = '';
+            showAlertModal('La contraseña debe tener entre ' + MIN_PASSWORD + ' y ' + MAX_PASSWORD + ' caracteres, contener solo letras y números y no incluir espacios ni caracteres especiales', 'error');
             password.focus();
         }
     });
