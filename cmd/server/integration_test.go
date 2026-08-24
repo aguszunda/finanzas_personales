@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -13,9 +14,28 @@ import (
 	"time"
 
 	"optipay/internal/config"
+	"optipay/internal/service"
 
 	"github.com/go-sql-driver/mysql"
 )
+
+// fakeMailer captura los enlaces de verificación que la app "envía", para que
+// los tests puedan completar el flujo real de confirmación de email.
+type fakeMailer struct {
+	links []string
+}
+
+func (f *fakeMailer) SendVerificacion(_ context.Context, _, _, link string) error {
+	f.links = append(f.links, link)
+	return nil
+}
+
+func (f *fakeMailer) lastLink() string {
+	if len(f.links) == 0 {
+		return ""
+	}
+	return f.links[len(f.links)-1]
+}
 
 // adminDB connects to MySQL without selecting a database so each test can
 // create (and later drop) its own isolated schema.
@@ -49,6 +69,7 @@ type testEnv struct {
 	router http.Handler
 	cfg    *config.Config
 	db     *sql.DB
+	mailer *fakeMailer
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -73,6 +94,12 @@ func newTestEnv(t *testing.T) *testEnv {
 		admin.Close()
 	})
 
+	// Inyecta un mailer falso que captura los links de verificación.
+	fm := &fakeMailer{}
+	prevFactory := mailerFactory
+	mailerFactory = func(*config.Config) service.Mailer { return fm }
+	t.Cleanup(func() { mailerFactory = prevFactory })
+
 	appCfg := &config.Config{
 		Port:          "0",
 		DatabaseURL:   cfg.FormatDSN(),
@@ -80,8 +107,9 @@ func newTestEnv(t *testing.T) *testEnv {
 		JWTExpiration: 72 * time.Hour,
 		CORSOrigin:    "*",
 		LogLevel:      "info",
+		AppBaseURL:    "http://localhost:8080",
 	}
-	return &testEnv{router: buildRouter(appCfg, db), cfg: appCfg, db: db}
+	return &testEnv{router: buildRouter(appCfg, db), cfg: appCfg, db: db, mailer: fm}
 }
 
 func doReq(t *testing.T, h http.Handler, method, path string, token string, body string, contentType string, hx bool) *httptest.ResponseRecorder {
@@ -105,6 +133,32 @@ func doReq(t *testing.T, h http.Handler, method, path string, token string, body
 	return rec
 }
 
+// verificationTokenFromLink extrae el parámetro token del link capturado.
+func verificationTokenFromLink(link string) string {
+	i := strings.Index(link, "token=")
+	if i < 0 {
+		return ""
+	}
+	return link[i+len("token="):]
+}
+
+// verificarEmail consume el último enlace de verificación capturado por el
+// mailer falso y afirma que la página de resultado muestra el éxito.
+func verificarEmail(t *testing.T, env *testEnv) {
+	t.Helper()
+	link := env.mailer.lastLink()
+	if link == "" {
+		t.Fatal("no se capturó ningún link de verificación")
+	}
+	rec := doReq(t, env.router, http.MethodGet,
+		"/api/auth/verificar?token="+verificationTokenFromLink(link), "", "", "", false)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Email confirmado") {
+		t.Fatalf("verify: expected 200 con éxito, got %d (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+// registerJSON registra al usuario, confirma su email con el enlace capturado
+// del mailer falso e inicia sesión. Devuelve el JWT de sesión.
 func registerJSON(t *testing.T, env *testEnv, email string) (token string, body map[string]interface{}) {
 	t.Helper()
 	payload := fmt.Sprintf(`{"nombre":"Test","email":%q,"password":"secreto123","moneda_default":"ARS"}`, email)
@@ -112,6 +166,18 @@ func registerJSON(t *testing.T, env *testEnv, email string) (token string, body 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register %s: expected 201, got %d (%s)", email, rec.Code, rec.Body.String())
 	}
+	verificarEmail(t, env)
+	return loginJSON(t, env, email, "secreto123")
+}
+
+func loginJSON(t *testing.T, env *testEnv, email, password string) (string, map[string]interface{}) {
+	t.Helper()
+	payload := fmt.Sprintf(`{"email":%q,"password":%q}`, email, password)
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/login", "", payload, "application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login %s: expected 200, got %d (%s)", email, rec.Code, rec.Body.String())
+	}
+	var body map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &body)
 	tok, _ := body["token"].(string)
 	return tok, body
@@ -139,6 +205,7 @@ func TestRootRedirect(t *testing.T) {
 func TestAuthFlow_RegisterLogin(t *testing.T) {
 	env := newTestEnv(t)
 
+	// El alta responde 201 pero NO emite sesión ni cookie.
 	rec := doReq(t, env.router, http.MethodPost, "/api/auth/register", "",
 		`{"nombre":"Pepe","email":"pepe@test.com","password":"secreto123","moneda_default":"ARS"}`,
 		"application/json", false)
@@ -147,17 +214,235 @@ func TestAuthFlow_RegisterLogin(t *testing.T) {
 	}
 	var body map[string]interface{}
 	json.Unmarshal(rec.Body.Bytes(), &body)
-	token, _ := body["token"].(string)
-	if token == "" {
-		t.Fatal("expected token")
+	if tok, _ := body["token"].(string); tok != "" {
+		t.Error("register must not issue a session token")
+	}
+	if msg, _ := body["mensaje"].(string); msg == "" {
+		t.Error("expected a pending-verification message")
+	}
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "token" && c.Value != "" {
+			t.Error("register must not set the auth cookie")
+		}
 	}
 
+	// Sin verificar, el login está bloqueado con 403.
+	rec = doReq(t, env.router, http.MethodPost, "/api/auth/login", "",
+		`{"email":"pepe@test.com","password":"secreto123"}`,
+		"application/json", false)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("login unverified: expected 403, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// Tras confirmar el email del enlace capturado, el login funciona.
+	verificarEmail(t, env)
 	rec = doReq(t, env.router, http.MethodPost, "/api/auth/login", "",
 		`{"email":"pepe@test.com","password":"secreto123"}`,
 		"application/json", false)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("login: expected 200, got %d", rec.Code)
+		t.Fatalf("login verified: expected 200, got %d (%s)", rec.Code, rec.Body.String())
 	}
+}
+
+// El registro vía HTMX devuelve el fragmento del pop-up (no una página
+// completa) con el email precargado en el form de reenvío.
+func TestAuth_Register_HTMX_PopUpReenvio(t *testing.T) {
+	env := newTestEnv(t)
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/register", "",
+		`{"nombre":"Test","email":"pop@test.com","password":"secreto123"}`,
+		"application/json", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 fragment, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`id="auth-panel"`,
+		"modal-overlay",
+		"Cuenta creada",
+		"pop@test.com",
+		"/api/auth/reenviar-verificacion",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("fragment missing %q", want)
+		}
+	}
+	if strings.Contains(body, "<!DOCTYPE") || strings.Contains(body, "Iniciar Sesión") {
+		t.Error("HTMX response must be the fragment, not the full page")
+	}
+
+	// Reenviar desde el pop-up (HTMX) reemplaza #auth-panel con la confirmación.
+	rec = doReq(t, env.router, http.MethodPost, "/api/auth/reenviar-verificacion", "",
+		`{"email":"pop@test.com"}`, "application/json", true)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "te enviamos un nuevo enlace") {
+		t.Fatalf("htmx resend: expected 200 confirmación, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `id="auth-panel"`) {
+		t.Error("resend response must replace #auth-panel")
+	}
+}
+
+// El login de una cuenta sin verificar muestra el pop-up de confirmación con
+// el form de reenvío precargado: HTMX recibe el fragmento, un form plano la
+// página completa y la API JSON conserva el 403. Reenviar desde el pop-up,
+// verificar con el nuevo enlace y loguearse cierra el flujo.
+func TestAuth_Login_NoVerificado_PopUpReenvio(t *testing.T) {
+	env := newTestEnv(t)
+	registrarSinVerificar(t, env, "pendiente@test.com")
+
+	// HTMX: fragmento con el pop-up y el email intentado precargado.
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/login", "",
+		`{"email":"pendiente@test.com","password":"secreto123"}`,
+		"application/json", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("htmx login unverified: expected 200 pop-up, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`id="auth-panel"`,
+		"modal-overlay",
+		"Falta confirmar tu email",
+		"pendiente@test.com",
+		"/api/auth/reenviar-verificacion",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("pop-up missing %q", want)
+		}
+	}
+	if strings.Contains(body, "<!DOCTYPE") || strings.Contains(body, "Iniciar Sesión") {
+		t.Error("HTMX response must be the fragment, not the full page")
+	}
+
+	// Form plano: página completa del login con el pop-up embebido.
+	rec = doReq(t, env.router, http.MethodPost, "/api/auth/login", "",
+		"email=pendiente@test.com&password=secreto123",
+		"application/x-www-form-urlencoded", false)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Falta confirmar tu email") {
+		t.Fatalf("form login unverified: expected 200 con pop-up, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// API JSON: contrato previo intacto (403).
+	rec = doReq(t, env.router, http.MethodPost, "/api/auth/login", "",
+		`{"email":"pendiente@test.com","password":"secreto123"}`,
+		"application/json", false)
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "confirmá tu email") {
+		t.Fatalf("json login unverified: expected 403, got %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// Reenviar desde el pop-up regenera el enlace; verificar y loguear funciona.
+	rec = doReq(t, env.router, http.MethodPost, "/api/auth/reenviar-verificacion", "",
+		`{"email":"pendiente@test.com"}`, "application/json", true)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "te enviamos un nuevo enlace") {
+		t.Fatalf("resend from pop-up: expected 200 confirmación, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if len(env.mailer.links) < 2 {
+		t.Fatalf("resend must deliver a second email, got %d links", len(env.mailer.links))
+	}
+	verificarEmail(t, env)
+	loginJSON(t, env, "pendiente@test.com", "secreto123")
+}
+
+func TestAuth_Verificar_TokenInvalidoYExpirado(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Token inventado: página de resultado con estado inválido.
+	rec := doReq(t, env.router, http.MethodGet, "/api/auth/verificar?token=no-existe", "", "", "", false)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "no es válido o ya fue usado") {
+		t.Fatalf("invalid token: expected 200 con estado inválido, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "reenviar-verificacion") {
+		t.Error("el estado inválido debe ofrecer reenviar el enlace")
+	}
+
+	// Token real pero vencido: se fuerza la expiración en la base.
+	registrarSinVerificar(t, env, "vencido@test.com")
+	link := env.mailer.lastLink()
+	if _, err := env.db.Exec(
+		"UPDATE usuarios SET token_expiracion = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE email = ?",
+		"vencido@test.com"); err != nil {
+		t.Fatalf("force token expiry: %v", err)
+	}
+	rec = doReq(t, env.router, http.MethodGet,
+		"/api/auth/verificar?token="+verificationTokenFromLink(link), "", "", "", false)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "está expirado") {
+		t.Fatalf("expired token: expected 200 con estado expirado, got %d (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuth_Reenviar_NuevoEnlaceInvalidaAnterior(t *testing.T) {
+	env := newTestEnv(t)
+	viejoLink := registrarSinVerificar(t, env, "reenvio@test.com")
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/reenviar-verificacion", "",
+		`{"email":"reenvio@test.com"}`, "application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("resend: expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	nuevoLink := env.mailer.lastLink()
+	if nuevoLink == viejoLink {
+		t.Fatal("resend must generate a fresh link")
+	}
+
+	// El enlace viejo ya no sirve; el nuevo verifica y habilita el login.
+	rec = doReq(t, env.router, http.MethodGet,
+		"/api/auth/verificar?token="+verificationTokenFromLink(viejoLink), "", "", "", false)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "no es válido o ya fue usado") {
+		t.Fatalf("old link after resend: expected estado inválido, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	rec = doReq(t, env.router, http.MethodGet,
+		"/api/auth/verificar?token="+verificationTokenFromLink(nuevoLink), "", "", "", false)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Email confirmado") {
+		t.Fatalf("new link: expected éxito, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	loginJSON(t, env, "reenvio@test.com", "secreto123")
+}
+
+func TestAuth_Reenviar_RespuestaGenericaAntiEnumeracion(t *testing.T) {
+	env := newTestEnv(t)
+
+	cases := []struct {
+		name     string
+		email    string
+		password string
+	}{
+		{"email inexistente", "nadie@test.com", ""},
+		{"usuario ya verificado", "ya-verificado@test.com", "secreto123"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.password != "" {
+				doReq(t, env.router, http.MethodPost, "/api/auth/register", "",
+					fmt.Sprintf(`{"nombre":"Test","email":%q,"password":%q}`, tc.email, tc.password),
+					"application/json", false)
+				verificarEmail(t, env)
+			}
+			linksAntes := len(env.mailer.links)
+
+			rec := doReq(t, env.router, http.MethodPost, "/api/auth/reenviar-verificacion", "",
+				fmt.Sprintf(`{"email":%q}`, tc.email), "application/json", false)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("resend: expected generic 200, got %d (%s)", rec.Code, rec.Body.String())
+			}
+			if len(env.mailer.links) != linksAntes {
+				t.Errorf("must not send emails for this case")
+			}
+		})
+	}
+}
+
+// registrarSinVerificar crea la cuenta y devuelve el link de verificación sin
+// consumirlo.
+func registrarSinVerificar(t *testing.T, env *testEnv, email string) string {
+	t.Helper()
+	before := len(env.mailer.links)
+	payload := fmt.Sprintf(`{"nombre":"Test","email":%q,"password":"secreto123","moneda_default":"ARS"}`, email)
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/register", "", payload, "application/json", false)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("register %s: expected 201, got %d (%s)", email, rec.Code, rec.Body.String())
+	}
+	if len(env.mailer.links) <= before {
+		t.Fatalf("register %s did not capture a verification link", email)
+	}
+	return env.mailer.lastLink()
 }
 
 func TestAuth_RegisterForm_SetsMoneda(t *testing.T) {
@@ -166,20 +451,20 @@ func TestAuth_RegisterForm_SetsMoneda(t *testing.T) {
 	rec := doReq(t, env.router, http.MethodPost, "/api/auth/register", "",
 		"nombre=Pepe&email=moneda@test.com&password=secreto123&moneda_default=USD",
 		"application/x-www-form-urlencoded", false)
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("expected 303 for form register, got %d (%s)", rec.Code, rec.Body.String())
+	// El alta responde con la propia página de registro mostrando el pop-up
+	// de verificación (sin cookie, sin redirect, sin tocar el login).
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 with success modal, got %d (%s)", rec.Code, rec.Body.String())
 	}
-	if rec.Header().Get("Location") != "/api/dashboard/page" {
-		t.Errorf("unexpected redirect: %q", rec.Header().Get("Location"))
-	}
-	var cookies []*http.Cookie
-	for _, c := range rec.Result().Cookies() {
-		if c.Name == "token" {
-			cookies = append(cookies, c)
+	for _, want := range []string{"Cuenta creada", "moneda@test.com", "Reenviar email de verificación"} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("success modal missing %q", want)
 		}
 	}
-	if len(cookies) == 0 {
-		t.Error("expected token cookie")
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "token" && c.Value != "" {
+			t.Error("register must not set the auth cookie")
+		}
 	}
 
 	// The selected currency must actually be persisted (regression: the input

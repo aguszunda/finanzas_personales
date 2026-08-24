@@ -222,6 +222,12 @@ func handleServiceError(w http.ResponseWriter, err error) {
 		respondError(w, http.StatusConflict, "el email ya está registrado")
 	case errors.Is(err, model.ErrMesCerrado):
 		respondError(w, http.StatusConflict, "el mes está cerrado, no se puede modificar")
+	case errors.Is(err, model.ErrEmailNoVerificado):
+		respondError(w, http.StatusForbidden, "confirmá tu email para poder ingresar (revisá tu casilla o pedí un nuevo enlace)")
+	case errors.Is(err, model.ErrTokenExpirado):
+		respondError(w, http.StatusBadRequest, "el enlace de verificación está expirado; pedí uno nuevo")
+	case errors.Is(err, model.ErrTokenInvalido):
+		respondError(w, http.StatusBadRequest, "el enlace de verificación no es válido")
 	default:
 		slog.Error("internal error", "error", err)
 		respondError(w, http.StatusInternalServerError, "error interno del servidor")

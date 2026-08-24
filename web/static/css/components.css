@@ -97,6 +97,9 @@ th { font-weight: 600; color: var(--text-secondary); font-size: 0.875rem; }
 
 .alert { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
 .alert-error { background: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+.alert-success { background: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+.alert-info { background: #cff4fc; color: #055160; border: 1px solid #b6effb; }
+.alert-warning { background: #fff3cd; color: #664d03; border: 1px solid #ffec99; }
 
 .loading { opacity: 0.6; }
 

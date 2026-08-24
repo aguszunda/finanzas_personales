@@ -1,0 +1,33 @@
+{{define "head"}}
+<link rel="stylesheet" href="/static/css/auth.css">
+{{end}}
+{{define "content"}}
+<div class="auth-form">
+    <h1 class="auth-logo"><img src="/images/logo_optipay.png" alt="Optipay"><a> Optipay</a></h1>
+    <div id="auth-panel">
+        <div class="card">
+            <h2 style="text-align:center">Verificación de email</h2>
+            {{if .Exito}}
+            <div class="alert alert-success">Email confirmado. Ya podés iniciar sesión.</div>
+            <div style="display:flex;justify-content:center">
+                <a href="/login" class="btn btn-primary">Iniciar sesión</a>
+            </div>
+            {{else if .Reenviado}}
+            <div class="alert alert-success">Si el email está registrado y sin verificar, te enviamos un nuevo enlace.</div>
+            <div style="display:flex;justify-content:center">
+                <a href="/login" class="btn btn-primary">Ir a iniciar sesión</a>
+            </div>
+            {{else if .Expirado}}
+            <div class="alert alert-warning">El enlace de verificación está expirado. Ingresá tu email para recibir uno nuevo:</div>
+            {{template "reenvio_form" .}}
+            {{else if .Invalido}}
+            <div class="alert alert-error">El enlace de verificación no es válido o ya fue usado. Ingresá tu email para recibir uno nuevo:</div>
+            {{template "reenvio_form" .}}
+            {{else}}
+            <div class="alert alert-info">Si ya te registraste, usá el enlace que te enviamos por email o pedí uno nuevo.</div>
+            <p class="text-center mt-1"><a href="/reenviar-verificacion">Reenviar verificación</a></p>
+            {{end}}
+        </div>
+    </div>
+</div>
+{{end}}

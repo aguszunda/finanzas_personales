@@ -30,6 +30,13 @@ type Config struct {
 	JWTExpiration time.Duration
 	CORSOrigin    string
 	LogLevel      string
+
+	SMTPHost   string // vacío => modo dev (el mail de verificación se loguea por stdout)
+	SMTPPort   string
+	SMTPUser   string
+	SMTPPass   string
+	MailFrom   string
+	AppBaseURL string // base para armar los links de verificación
 }
 
 // Load construye la configuración desde variables de entorno con fail-fast:
@@ -42,6 +49,13 @@ func Load() (*Config, error) {
 		JWTExpiration: time.Duration(getEnvInt("JWT_EXPIRATION_HOURS", 72)) * time.Hour,
 		CORSOrigin:    getEnv("CORS_ORIGIN", "*"),
 		LogLevel:      getEnv("LOG_LEVEL", "info"),
+
+		SMTPHost:   strings.TrimSpace(os.Getenv("SMTP_HOST")),
+		SMTPPort:   getEnv("SMTP_PORT", "587"),
+		SMTPUser:   os.Getenv("SMTP_USER"),
+		SMTPPass:   os.Getenv("SMTP_PASS"),
+		MailFrom:   os.Getenv("MAIL_FROM"),
+		AppBaseURL: strings.TrimRight(getEnv("APP_BASE_URL", "http://localhost:8080"), "/"),
 	}
 
 	secret, err := getEnvRequired("JWT_SECRET")
@@ -64,6 +78,12 @@ func Load() (*Config, error) {
 		return nil, errors.New("DATABASE_URL debe ser una DSN de MySQL válida (ej: usuario:pass@tcp(host:3306)/db)")
 	}
 	cfg.DatabaseURL = databaseURL
+
+	// SMTP es opcional (modo dev loguea el link), pero si hay servidor
+	// configurado el remitente es obligatorio: sin From ningún MTA acepta.
+	if cfg.SMTPHost != "" && strings.TrimSpace(cfg.MailFrom) == "" {
+		return nil, errors.New("MAIL_FROM es requerida cuando SMTP_HOST está configurada")
+	}
 
 	return cfg, nil
 }

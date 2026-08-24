@@ -4,6 +4,10 @@
 {{define "content"}}
 <div class="auth-form">
     <h1 class="auth-logo"><img src="/images/logo_optipay.png" alt="Optipay"><a> Optipay</a></h1>
+    {{if .pendienteVerificacion}}
+        {{template "login_verificar" .}}
+    {{else}}
+    <div id="auth-panel">
     <div class="card">
         <h2 style="text-align:center">Iniciar Sesión</h2>
         <form hx-post="/api/auth/login" hx-swap="none" method="post" action="/api/auth/login">
@@ -29,5 +33,7 @@
             ¿No tenés cuenta? <a href="/register">Registrate</a>
         </p>
     </div>
+    </div>
+    {{end}}
 </div>
 {{end}}

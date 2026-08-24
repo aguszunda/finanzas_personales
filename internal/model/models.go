@@ -9,6 +9,9 @@ type Usuario struct {
 	PasswordHash  string    `json:"-"`
 	MonedaDefault string    `json:"moneda_default"`
 	CreatedAt     time.Time `json:"created_at"`
+
+	EmailVerificado bool       `json:"email_verificado"`
+	TokenExpiracion *time.Time `json:"-"` // vigencia del token de verificación; nil si no hay pendiente
 }
 
 type Transaccion struct {

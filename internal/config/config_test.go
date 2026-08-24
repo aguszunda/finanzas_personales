@@ -154,3 +154,53 @@ func TestLoad_RechazaDatabaseURLInvalida(t *testing.T) {
 		t.Error("expected error for non-MySQL DATABASE_URL")
 	}
 }
+
+// Sin SMTP configurado la app arranca igual (modo dev loguea los links).
+func TestLoad_SMTPOpcional(t *testing.T) {
+	validEnv(t)
+	setEnv(t, "SMTP_HOST", "")
+	setEnv(t, "APP_BASE_URL", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SMTPHost != "" {
+		t.Errorf("expected empty SMTPHost, got %q", cfg.SMTPHost)
+	}
+	if cfg.AppBaseURL != "http://localhost:8080" {
+		t.Errorf("expected default APP_BASE_URL http://localhost:8080, got %q", cfg.AppBaseURL)
+	}
+}
+
+func TestLoad_SMTPConHostRequiereRemitente(t *testing.T) {
+	validEnv(t)
+	setEnv(t, "SMTP_HOST", "smtp.gmail.com")
+	setEnv(t, "MAIL_FROM", "")
+
+	_, err := Load()
+	if err == nil {
+		t.Error("expected error when SMTP_HOST is set without MAIL_FROM")
+	}
+}
+
+func TestLoad_SMTPCompletoYBaseURLSinSlashFinal(t *testing.T) {
+	validEnv(t)
+	setEnv(t, "SMTP_HOST", "smtp.gmail.com")
+	setEnv(t, "SMTP_PORT", "465")
+	setEnv(t, "SMTP_USER", "user@gmail.com")
+	setEnv(t, "SMTP_PASS", "app-password")
+	setEnv(t, "MAIL_FROM", "no-reply@midominio.com")
+	setEnv(t, "APP_BASE_URL", "https://optipay.example.com/")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SMTPPort != "465" || cfg.SMTPUser != "user@gmail.com" || cfg.SMTPPass != "app-password" {
+		t.Errorf("unexpected SMTP config: %+v", cfg)
+	}
+	if cfg.AppBaseURL != "https://optipay.example.com" {
+		t.Errorf("expected trailing slash trimmed, got %q", cfg.AppBaseURL)
+	}
+}
