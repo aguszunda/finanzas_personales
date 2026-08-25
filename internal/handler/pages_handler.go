@@ -42,11 +42,11 @@ func (h *PagesHandler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 func (h *PagesHandler) VerificacionPage(w http.ResponseWriter, r *http.Request) {
 	estado := r.URL.Query().Get("estado")
 	data := map[string]interface{}{
-		"hideNav":  true,
-		"Exito":    estado == "ok",
+		"hideNav":   true,
+		"Exito":     estado == "ok",
 		"Reenviado": estado == "reenviado",
-		"Expirado": estado == "expirado",
-		"Invalido": estado == "invalido",
+		"Expirado":  estado == "expirado",
+		"Invalido":  estado == "invalido",
 	}
 	renderTemplate(w, "verificacion", data)
 }
