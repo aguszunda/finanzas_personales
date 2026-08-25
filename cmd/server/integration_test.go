@@ -396,6 +396,24 @@ func TestAuth_Reenviar_NuevoEnlaceInvalidaAnterior(t *testing.T) {
 	loginJSON(t, env, "reenvio@test.com", "secreto123")
 }
 
+// El form de login debe swappear #auth-panel: si el template vuelve a
+// hx-swap="none", el pop-up de cuenta sin verificar viaja al navegador pero
+// htmx lo descarta y el botón "Ingresar" parece muerto.
+func TestAuth_LoginPage_FormSwapeaAuthPanel(t *testing.T) {
+	env := newTestEnv(t)
+	rec := doReq(t, env.router, http.MethodGet, "/login", "", "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /login: expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `hx-post="/api/auth/login" hx-target="#auth-panel" hx-swap="outerHTML"`) {
+		t.Error("el form de login debe swappear #auth-panel (hx-target + outerHTML)")
+	}
+	if strings.Contains(body, `hx-post="/api/auth/login" hx-swap="none"`) {
+		t.Error(`login con hx-swap="none": el pop-up de verificación no se mostraría`)
+	}
+}
+
 func TestAuth_Reenviar_RespuestaGenericaAntiEnumeracion(t *testing.T) {
 	env := newTestEnv(t)
 
