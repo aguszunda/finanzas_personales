@@ -1,6 +1,7 @@
-.PHONY: build run test fmt coverage clean dev deps db-init migrate-up migrate-down docker-build docker-run docker-up docker-down git-hooks help
+.PHONY: build run test fmt lint-sec coverage clean dev deps db-init migrate-up migrate-down docker-build docker-run docker-up docker-down git-hooks help
 
 MIGRATE_VERSION ?= v4.18.3
+GOSEC_VERSION ?= v2.28.0
 
 build:
 	go build -o bin/server ./cmd/server
@@ -16,6 +17,9 @@ test:
 
 fmt:
 	gofmt -w .
+
+lint-sec:
+	go run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) -quiet ./...
 
 coverage:
 	MIN_COVERAGE=85 ./scripts/coverage.sh
@@ -62,6 +66,7 @@ help:
 	@echo "  make dev         - Ejecutar con recarga automática (air)"
 	@echo "  make test        - Ejecutar tests"
 	@echo "  make fmt         - Formatear todo el código (gofmt -w .)"
+	@echo "  make lint-sec    - Análisis de seguridad (gosec, igual que CI)"
 	@echo "  make clean       - Limpiar binarios"
 	@echo "  make deps        - Actualizar dependencias"
 	@echo "  make db-init     - Crear la base y aplicar migraciones (scripts/db-init.sh)"

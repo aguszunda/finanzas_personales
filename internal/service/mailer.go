@@ -78,7 +78,7 @@ func (m *smtpMailer) SendVerificacion(_ context.Context, email, nombre, link str
 		return err
 	}
 	if _, err := w.Write(msg); err != nil {
-		w.Close()
+		_ = w.Close()
 		return err
 	}
 	if err := w.Close(); err != nil {
@@ -103,12 +103,12 @@ func dialSMTPStartTLS(addr, host string) (*smtp.Client, error) {
 	}
 	c, err := smtp.NewClient(conn, host)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, err
 	}
 	if ok, _ := c.Extension("STARTTLS"); ok {
 		if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
-			c.Close()
+			_ = c.Close()
 			return nil, err
 		}
 	}
