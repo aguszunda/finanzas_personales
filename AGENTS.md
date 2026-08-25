@@ -11,7 +11,7 @@ Go 1.24 monolith: personal-finance web app. One binary serving a JSON API + serv
   - The router is built by `buildRouter` in `cmd/server/router.go`, shared by `main.go` and the integration tests.
 - Verify: `go vet ./... && go build ./...`
 - Env: keep secrets in `env.secrets` (gitignored, not in repo). Load it with `set -a; source env.secrets; set +a` — NOT `export $(cat env.secrets)` because the MySQL DSN contains `&` which the shell would mis-parse.
-- Commit hooks: `make git-hooks` (validates Conventional Commits via `.githooks/commit-msg`).
+- Commit hooks: `make git-hooks` (validates Conventional Commits via `.githooks/commit-msg`; `.githooks/pre-push` blocks the push when `gofmt -l .` finds deviations — same check as CI. Format with `make fmt`).
 
 ## Commits (Conventional Commits)
 

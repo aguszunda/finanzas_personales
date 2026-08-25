@@ -1,4 +1,4 @@
-.PHONY: build run test coverage clean dev deps db-init migrate-up migrate-down docker-build docker-run docker-up docker-down git-hooks help
+.PHONY: build run test fmt coverage clean dev deps db-init migrate-up migrate-down docker-build docker-run docker-up docker-down git-hooks help
 
 MIGRATE_VERSION ?= v4.18.3
 
@@ -13,6 +13,9 @@ dev:
 
 test:
 	go test ./... -v
+
+fmt:
+	gofmt -w .
 
 coverage:
 	MIN_COVERAGE=85 ./scripts/coverage.sh
@@ -46,8 +49,10 @@ docker-down:
 
 git-hooks:
 	git config core.hooksPath .githooks
-	chmod +x .githooks/commit-msg
+	chmod +x .githooks/commit-msg .githooks/pre-push
 	@echo "Hooks de git instalados (core.hooksPath = .githooks)"
+	@echo "  commit-msg: valida Conventional Commits"
+	@echo "  pre-push:   bloquea el push si gofmt -l . detecta desvíos"
 
 .PHONY: help
 help:
@@ -56,6 +61,7 @@ help:
 	@echo "  make run         - Compilar y ejecutar"
 	@echo "  make dev         - Ejecutar con recarga automática (air)"
 	@echo "  make test        - Ejecutar tests"
+	@echo "  make fmt         - Formatear todo el código (gofmt -w .)"
 	@echo "  make clean       - Limpiar binarios"
 	@echo "  make deps        - Actualizar dependencias"
 	@echo "  make db-init     - Crear la base y aplicar migraciones (scripts/db-init.sh)"
@@ -65,4 +71,4 @@ help:
 	@echo "  make docker-run  - Ejecutar contenedor Docker"
 	@echo "  make docker-up   - Levantar stack Docker Compose (MySQL + app)"
 	@echo "  make docker-down - Detener stack Docker Compose"
-	@echo "  make git-hooks   - Instalar hooks de git (valida Conventional Commits)"
+	@echo "  make git-hooks   - Instalar hooks de git (Conventional Commits + gofmt pre-push)"
