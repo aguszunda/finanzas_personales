@@ -30,6 +30,11 @@ func (f *fakeMailer) SendVerificacion(_ context.Context, _, _, link string) erro
 	return nil
 }
 
+func (f *fakeMailer) SendPasswordReset(_ context.Context, _, _, link string) error {
+	f.links = append(f.links, link)
+	return nil
+}
+
 func (f *fakeMailer) lastLink() string {
 	if len(f.links) == 0 {
 		return ""

@@ -129,6 +129,61 @@ func (h *AuthHandler) ReenviarVerificacion(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// ForgotPassword procesa el pedido de reseteo de contraseña. La respuesta es
+// genérica: no revela si el email existe o no.
+func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var input service.ForgotPasswordInput
+	if err := decodeBody(r, &input); err != nil {
+		respondError(w, http.StatusBadRequest, "formulario inválido")
+		return
+	}
+	if err := h.svc.ForgotPassword(r.Context(), input); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	mensaje := "Si el email está registrado, te enviamos un enlace para restablecer tu contraseña."
+	switch {
+	case middleware.IsHTMXRequest(r.Context()):
+		renderTemplateFragment(w, "forgot_ok", map[string]interface{}{"Mensaje": mensaje})
+	case strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded"):
+		http.Redirect(w, r, "/forgot-password?estado=ok", http.StatusSeeOther)
+	default:
+		respondJSON(w, http.StatusOK, service.ResetPasswordResponse{Mensaje: mensaje})
+	}
+}
+
+// ResetPasswordPage renderiza el formulario de nueva contraseña. El token viene
+// como query param (?token=xxx) y se pasa al template.
+func (h *AuthHandler) ResetPasswordPage(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	renderTemplate(w, "reset_password", map[string]interface{}{
+		"hideNav": true,
+		"Token":   token,
+	})
+}
+
+// ResetPassword valida el token y cambia la contraseña.
+func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var input service.ResetPasswordInput
+	if err := decodeBody(r, &input); err != nil {
+		respondError(w, http.StatusBadRequest, "formulario inválido")
+		return
+	}
+	result, err := h.svc.ResetPassword(r.Context(), input)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	switch {
+	case middleware.IsHTMXRequest(r.Context()):
+		renderTemplateFragment(w, "reset_ok", result)
+	case strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded"):
+		http.Redirect(w, r, "/login?reset=ok", http.StatusSeeOther)
+	default:
+		respondJSON(w, http.StatusOK, result)
+	}
+}
+
 func setAuthCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",

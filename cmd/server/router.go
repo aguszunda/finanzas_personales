@@ -90,6 +90,8 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 	r.Get("/register", pagesH.RegisterPage)
 	r.Get("/reenviar-verificacion", pagesH.ReenvioPage)
 	r.Get("/verificacion", pagesH.VerificacionPage)
+	r.Get("/forgot-password", pagesH.ForgotPasswordPage)
+	r.Get("/reset-password", authH.ResetPasswordPage)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := r.Cookie("token"); err == nil {
 			http.Redirect(w, r, "/api/dashboard/page", http.StatusFound)
@@ -103,6 +105,8 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 		r.Post("/auth/login", authH.Login)
 		r.Get("/auth/verificar", authH.Verificar)
 		r.Post("/auth/reenviar-verificacion", authH.ReenviarVerificacion)
+		r.Post("/auth/forgot-password", authH.ForgotPassword)
+		r.Post("/auth/reset-password", authH.ResetPassword)
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.JWTAuth([]byte(cfg.JWTSecret)))

@@ -1,0 +1,11 @@
+{{define "reset_error"}}
+<div id="auth-panel">
+    <div class="card">
+        <h2 style="text-align:center">Error</h2>
+        <div class="alert alert-error">{{.Mensaje}}</div>
+        <div style="display:flex;justify-content:center">
+            <a href="/forgot-password" class="btn btn-primary">Solicitar nuevo enlace</a>
+        </div>
+    </div>
+</div>
+{{end}}

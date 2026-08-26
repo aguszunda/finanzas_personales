@@ -12,6 +12,9 @@ type Usuario struct {
 
 	EmailVerificado bool       `json:"email_verificado"`
 	TokenExpiracion *time.Time `json:"-"` // vigencia del token de verificación; nil si no hay pendiente
+
+	PasswordResetToken      string     `json:"-"`
+	PasswordResetExpiracion *time.Time `json:"-"`
 }
 
 type Transaccion struct {

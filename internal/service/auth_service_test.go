@@ -61,6 +61,14 @@ func (f *fakeMailer) SendVerificacion(_ context.Context, _, _, link string) erro
 	return nil
 }
 
+func (f *fakeMailer) SendPasswordReset(_ context.Context, _, _, link string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.links = append(f.links, link)
+	return nil
+}
+
 // authServiceFixture agrupa el servicio con sus dobles de prueba.
 type authServiceFixture struct {
 	svc    *AuthService
@@ -545,5 +553,162 @@ func TestAuthService_GenerateTokenIsVerifiable(t *testing.T) {
 	}
 	if userID != 42 {
 		t.Errorf("expected sub 42, got %d", userID)
+	}
+}
+
+// --- ForgotPassword ---
+
+const queryGuardarPasswordReset = "UPDATE usuarios SET password_reset_token = ?, password_reset_expiracion = ? WHERE id = ?"
+const queryFindByPasswordResetToken = "SELECT id, nombre, email, password_hash, moneda_default, created_at, email_verificado, password_reset_expiracion FROM usuarios WHERE password_reset_token = ?"
+
+func TestAuthService_ForgotPassword_UsuarioExistente(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+		AddRow(7, "Agustin", "a@test.com", "$2a$hash", "ARS", created, true)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+		WithArgs("a@test.com").
+		WillReturnRows(rows)
+	f.mock.ExpectExec(regexp.QuoteMeta(queryGuardarPasswordReset)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := f.svc.ForgotPassword(context.Background(), ForgotPasswordInput{Email: "a@test.com"}); err != nil {
+		t.Fatalf("ForgotPassword returned error: %v", err)
+	}
+	if len(f.mailer.links) != 1 {
+		t.Fatalf("expected one reset email, got %d", len(f.mailer.links))
+	}
+	if !strings.Contains(f.mailer.links[0], "/reset-password?token=") {
+		t.Errorf("reset link malformed: %q", f.mailer.links[0])
+	}
+}
+
+// Anti-enumeración: email desconocido responde éxito genérico y no envía nada.
+func TestAuthService_ForgotPassword_EmailDesconocido(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+		WithArgs("nadie@test.com").
+		WillReturnError(sql.ErrNoRows)
+
+	if err := f.svc.ForgotPassword(context.Background(), ForgotPasswordInput{Email: "nadie@test.com"}); err != nil {
+		t.Fatalf("expected nil for unknown email, got %v", err)
+	}
+	if len(f.mailer.links) != 0 {
+		t.Errorf("must not send emails for unknown addresses")
+	}
+}
+
+func TestAuthService_ForgotPassword_EmailInvalido(t *testing.T) {
+	svc, _ := newAuthService(t)
+	// Email inválido no debe fallar: retorna nil (respuesta genérica)
+	if err := svc.ForgotPassword(context.Background(), ForgotPasswordInput{Email: "invalido"}); err != nil {
+		t.Fatalf("expected nil for invalid email, got %v", err)
+	}
+}
+
+// --- ResetPassword ---
+
+func TestAuthService_ResetPassword_Exitoso(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	rawToken, hash, err := generateVerificationToken()
+	if err != nil {
+		t.Fatalf("generateVerificationToken: %v", err)
+	}
+	expira := time.Now().Add(time.Hour)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado", "password_reset_expiracion"}).
+		AddRow(7, "Agustin", "a@test.com", "$2a$oldhash", "ARS", time.Now(), true, expira)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByPasswordResetToken)).
+		WithArgs(hash).
+		WillReturnRows(rows)
+	f.mock.ExpectExec(regexp.QuoteMeta("UPDATE usuarios SET password_hash = ?, password_reset_token = NULL, password_reset_expiracion = NULL WHERE id = ?")).
+		WithArgs(sqlmock.AnyArg(), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	resp, err := f.svc.ResetPassword(context.Background(), ResetPasswordInput{
+		Token:     rawToken,
+		Password:  "nuevaclave1",
+		Password2: "nuevaclave1",
+	})
+	if err != nil {
+		t.Fatalf("ResetPassword returned error: %v", err)
+	}
+	if resp.Mensaje == "" {
+		t.Error("expected success message")
+	}
+}
+
+func TestAuthService_ResetPassword_ContrasenasNoCoinciden(t *testing.T) {
+	svc, _ := newAuthService(t)
+	_, err := svc.ResetPassword(context.Background(), ResetPasswordInput{
+		Token:     "abc123",
+		Password:  "nuevaclave1",
+		Password2: "otraclave1",
+	})
+	if !errors.Is(err, model.ErrPasswordInvalido) {
+		t.Fatalf("expected ErrPasswordInvalido, got %v", err)
+	}
+}
+
+func TestAuthService_ResetPassword_ContrasenaInvalida(t *testing.T) {
+	svc, _ := newAuthService(t)
+	_, err := svc.ResetPassword(context.Background(), ResetPasswordInput{
+		Token:     "abc123",
+		Password:  "corta",
+		Password2: "corta",
+	})
+	if !errors.Is(err, model.ErrPasswordInvalido) {
+		t.Fatalf("expected ErrPasswordInvalido, got %v", err)
+	}
+}
+
+func TestAuthService_ResetPassword_TokenInvalido(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByPasswordResetToken)).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+
+	_, err := f.svc.ResetPassword(context.Background(), ResetPasswordInput{
+		Token:     "token-inexistente",
+		Password:  "nuevaclave1",
+		Password2: "nuevaclave1",
+	})
+	if !errors.Is(err, model.ErrPasswordResetInvalido) {
+		t.Fatalf("expected ErrPasswordResetInvalido, got %v", err)
+	}
+}
+
+func TestAuthService_ResetPassword_TokenExpirado(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	rawToken, hash, err := generateVerificationToken()
+	if err != nil {
+		t.Fatalf("generateVerificationToken: %v", err)
+	}
+	expira := time.Now().Add(-time.Minute)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado", "password_reset_expiracion"}).
+		AddRow(7, "Agustin", "a@test.com", "$2a$oldhash", "ARS", time.Now(), true, expira)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByPasswordResetToken)).
+		WithArgs(hash).
+		WillReturnRows(rows)
+
+	_, err = f.svc.ResetPassword(context.Background(), ResetPasswordInput{
+		Token:     rawToken,
+		Password:  "nuevaclave1",
+		Password2: "nuevaclave1",
+	})
+	if !errors.Is(err, model.ErrPasswordResetExpirado) {
+		t.Fatalf("expected ErrPasswordResetExpirado, got %v", err)
+	}
+}
+
+func TestAuthService_ResetPassword_TokenVacio(t *testing.T) {
+	svc, _ := newAuthService(t)
+	_, err := svc.ResetPassword(context.Background(), ResetPasswordInput{
+		Token:     "   ",
+		Password:  "nuevaclave1",
+		Password2: "nuevaclave1",
+	})
+	if !errors.Is(err, model.ErrPasswordResetInvalido) {
+		t.Fatalf("expected ErrPasswordResetInvalido, got %v", err)
 	}
 }
