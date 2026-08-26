@@ -1,0 +1,22 @@
+{{define "head"}}
+<link rel="stylesheet" href="/static/css/auth.css">
+{{end}}
+{{define "content"}}
+<div class="auth-form">
+    <h1 class="auth-logo"><img src="/images/logo_optipay.png" alt="Optipay"><a> Optipay</a></h1>
+    <div class="card">
+        <h2 style="text-align:center">Reenviar verificación</h2>
+        <p style="text-align:center">Ingresá tu email y te enviaremos un nuevo enlace para confirmar tu cuenta.</p>
+        <form hx-post="/api/auth/reenviar-verificacion" hx-swap="none" method="post" action="/api/auth/reenviar-verificacion">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%">Enviar enlace</button>
+        </form>
+        <p class="text-center mt-1">
+            <a href="/login">Volver a iniciar sesión</a>
+        </p>
+    </div>
+</div>
+{{end}}

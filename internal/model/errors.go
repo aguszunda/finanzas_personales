@@ -13,4 +13,8 @@ var (
 	ErrEmailNoExiste    = errors.New("el email no está registrado")
 	ErrEmailInvalido    = errors.New("el email no es válido")
 	ErrPasswordInvalido = errors.New("la contraseña no es válida")
+
+	ErrEmailNoVerificado = errors.New("el email no está verificado")
+	ErrTokenInvalido     = errors.New("el token de verificación no es válido")
+	ErrTokenExpirado     = errors.New("el token de verificación está expirado")
 )

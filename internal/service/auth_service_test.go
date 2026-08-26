@@ -39,27 +39,64 @@ func parseTestToken(tokenStr string, secret []byte) (bool, int64, error) {
 }
 
 const (
-	queryInsertUsuario = "INSERT INTO usuarios (nombre, email, password_hash, moneda_default) VALUES (?, ?, ?, ?)"
-	queryFindByEmail   = "SELECT id, nombre, email, password_hash, moneda_default, created_at FROM usuarios WHERE email = ?"
+	queryInsertUsuario    = "INSERT INTO usuarios (nombre, email, password_hash, moneda_default) VALUES (?, ?, ?, ?)"
+	queryFindByEmail      = "SELECT id, nombre, email, password_hash, moneda_default, created_at, email_verificado FROM usuarios WHERE email = ?"
+	queryFindByToken      = "SELECT id, nombre, email, password_hash, moneda_default, created_at, email_verificado, token_expiracion FROM usuarios WHERE token_verificacion = ?"
+	queryGuardarToken     = "UPDATE usuarios SET token_verificacion = ?, token_expiracion = ? WHERE id = ?"
+	queryMarcarVerificado = "UPDATE usuarios SET email_verificado = TRUE, token_expiracion = NULL WHERE id = ?"
 )
 
-func newAuthService(t *testing.T) (*AuthService, sqlmock.Sqlmock) {
+// fakeMailer captura los links enviados para poder afirmar sobre ellos y
+// permite simular fallos de SMTP.
+type fakeMailer struct {
+	links []string
+	err   error
+}
+
+func (f *fakeMailer) SendVerificacion(_ context.Context, _, _, link string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.links = append(f.links, link)
+	return nil
+}
+
+// authServiceFixture agrupa el servicio con sus dobles de prueba.
+type authServiceFixture struct {
+	svc    *AuthService
+	mock   sqlmock.Sqlmock
+	mailer *fakeMailer
+}
+
+func newAuthServiceFixture(t *testing.T) *authServiceFixture {
 	t.Helper()
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return NewAuthService(repository.NewUsuarioRepo(db), []byte("test-secret"), 72*time.Hour), mock
+	mailer := &fakeMailer{}
+	repo := repository.NewUsuarioRepo(db)
+	svc := NewAuthService(repo, []byte("test-secret"), 72*time.Hour, mailer, "http://localhost:8080")
+	return &authServiceFixture{svc: svc, mock: mock, mailer: mailer}
+}
+
+func newAuthService(t *testing.T) (*AuthService, sqlmock.Sqlmock) {
+	t.Helper()
+	f := newAuthServiceFixture(t)
+	return f.svc, f.mock
 }
 
 func TestAuthService_Register_Valid(t *testing.T) {
-	svc, mock := newAuthService(t)
-	mock.ExpectExec(regexp.QuoteMeta(queryInsertUsuario)).
+	f := newAuthServiceFixture(t)
+	f.mock.ExpectExec(regexp.QuoteMeta(queryInsertUsuario)).
 		WithArgs("Agustin", "a@test.com", sqlmock.AnyArg(), "USD").
 		WillReturnResult(sqlmock.NewResult(7, 1))
+	f.mock.ExpectExec(regexp.QuoteMeta(queryGuardarToken)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	resp, err := svc.Register(context.Background(), RegisterInput{
+	resp, err := f.svc.Register(context.Background(), RegisterInput{
 		Nombre:        "Agustin",
 		Email:         "a@test.com",
 		Password:      "secreto123",
@@ -80,8 +117,35 @@ func TestAuthService_Register_Valid(t *testing.T) {
 	if resp.Usuario.PasswordHash == "" || resp.Usuario.PasswordHash == "secreto123" {
 		t.Error("password must be hashed")
 	}
-	if resp.Token == "" {
-		t.Error("expected a JWT token")
+	if resp.Mensaje == "" {
+		t.Error("expected a pending-verification message")
+	}
+	if len(f.mailer.links) != 1 {
+		t.Fatalf("expected exactly one verification email, got %d", len(f.mailer.links))
+	}
+	if !strings.Contains(f.mailer.links[0], "/api/auth/verificar?token=") {
+		t.Errorf("verification link malformed: %q", f.mailer.links[0])
+	}
+}
+
+func TestAuthService_Register_MailerFalloNoInvalidaAlta(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	f.mailer.err = errors.New("smtp caido")
+	f.mock.ExpectExec(regexp.QuoteMeta(queryInsertUsuario)).
+		WithArgs("Agustin", "a@test.com", sqlmock.AnyArg(), "ARS").
+		WillReturnResult(sqlmock.NewResult(3, 1))
+	f.mock.ExpectExec(regexp.QuoteMeta(queryGuardarToken)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), int64(3)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	resp, err := f.svc.Register(context.Background(), RegisterInput{
+		Nombre: "Agustin", Email: "a@test.com", Password: "secreto123",
+	})
+	if err != nil {
+		t.Fatalf("Register should not fail when mailer errors, got: %v", err)
+	}
+	if resp.Usuario == nil {
+		t.Fatal("expected the created user back")
 	}
 }
 
@@ -90,6 +154,9 @@ func TestAuthService_Register_DefaultsARSCurrency(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(queryInsertUsuario)).
 		WithArgs("Agustin", "a@test.com", sqlmock.AnyArg(), "ARS").
 		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(regexp.QuoteMeta(queryGuardarToken)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	resp, err := svc.Register(context.Background(), RegisterInput{
 		Nombre:   "Agustin",
@@ -182,6 +249,9 @@ func TestAuthService_Register_NormalizesEmail(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(queryInsertUsuario)).
 		WithArgs("Agustin", "pepe@test.com", sqlmock.AnyArg(), "ARS").
 		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(regexp.QuoteMeta(queryGuardarToken)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	resp, err := svc.Register(context.Background(), RegisterInput{
 		Nombre:   "Agustin",
@@ -208,8 +278,8 @@ func TestAuthService_Login_Valid(t *testing.T) {
 	svc, mock := newAuthService(t)
 	hash, _ := bcrypt.GenerateFromPassword([]byte("secreto123"), bcrypt.MinCost)
 	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at"}).
-		AddRow(5, "Agustin", "a@test.com", string(hash), "ARS", created)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+		AddRow(5, "Agustin", "a@test.com", string(hash), "ARS", created, true)
 	mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
 		WithArgs("a@test.com").
 		WillReturnRows(rows)
@@ -230,8 +300,8 @@ func TestAuthService_Login_WrongPassword(t *testing.T) {
 	svc, mock := newAuthService(t)
 	hash, _ := bcrypt.GenerateFromPassword([]byte("secreto123"), bcrypt.MinCost)
 	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at"}).
-		AddRow(5, "Agustin", "a@test.com", string(hash), "ARS", created)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+		AddRow(5, "Agustin", "a@test.com", string(hash), "ARS", created, true)
 	mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
 		WithArgs("a@test.com").
 		WillReturnRows(rows)
@@ -259,6 +329,204 @@ func TestAuthService_Login_EmptyInput(t *testing.T) {
 	_, err := svc.Login(context.Background(), LoginInput{Email: "", Password: ""})
 	if !errors.Is(err, model.ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	}
+}
+
+func TestAuthService_Login_EmailNoVerificado(t *testing.T) {
+	svc, mock := newAuthService(t)
+	hash, _ := bcrypt.GenerateFromPassword([]byte("secreto123"), bcrypt.MinCost)
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+		AddRow(9, "Agustin", "pendiente@test.com", string(hash), "ARS", created, false)
+	mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+		WithArgs("pendiente@test.com").
+		WillReturnRows(rows)
+
+	_, err := svc.Login(context.Background(), LoginInput{Email: "pendiente@test.com", Password: "secreto123"})
+	if !errors.Is(err, model.ErrEmailNoVerificado) {
+		t.Fatalf("expected ErrEmailNoVerificado, got %v", err)
+	}
+}
+
+func TestAuthService_VerificarEmail_Valid(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	rawToken, hash, err := generateVerificationToken()
+	if err != nil {
+		t.Fatalf("generateVerificationToken: %v", err)
+	}
+	expira := time.Now().Add(time.Hour)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado", "token_expiracion"}).
+		AddRow(7, "Agustin", "a@test.com", "$2a$hash", "ARS", time.Now(), false, expira)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByToken)).
+		WithArgs(hash).
+		WillReturnRows(rows)
+	f.mock.ExpectExec(regexp.QuoteMeta(queryMarcarVerificado)).
+		WithArgs(int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := f.svc.VerificarEmail(context.Background(), rawToken); err != nil {
+		t.Fatalf("VerificarEmail returned error: %v", err)
+	}
+}
+
+// Un segundo clic sobre el mismo enlace es idempotente: éxito sin re-marcar.
+func TestAuthService_VerificarEmail_YaVerificadoEsIdempotente(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	rawToken, hash, err := generateVerificationToken()
+	if err != nil {
+		t.Fatalf("generateVerificationToken: %v", err)
+	}
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado", "token_expiracion"}).
+		AddRow(7, "Agustin", "a@test.com", "$2a$hash", "ARS", time.Now(), true, nil)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByToken)).
+		WithArgs(hash).
+		WillReturnRows(rows)
+
+	if err := f.svc.VerificarEmail(context.Background(), rawToken); err != nil {
+		t.Fatalf("expected idempotent success, got %v", err)
+	}
+	if err := f.mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("no debe volver a marcar verificado: %v", err)
+	}
+}
+
+func TestAuthService_VerificarEmail_TokenExpirado(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	rawToken, hash, err := generateVerificationToken()
+	if err != nil {
+		t.Fatalf("generateVerificationToken: %v", err)
+	}
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado", "token_expiracion"}).
+		AddRow(7, "Agustin", "a@test.com", "$2a$hash", "ARS", time.Now(), false, time.Now().Add(-time.Minute))
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByToken)).
+		WithArgs(hash).
+		WillReturnRows(rows)
+
+	err = f.svc.VerificarEmail(context.Background(), rawToken)
+	if !errors.Is(err, model.ErrTokenExpirado) {
+		t.Fatalf("expected ErrTokenExpirado, got %v", err)
+	}
+}
+
+func TestAuthService_VerificarEmail_TokenInvalido(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByToken)).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+
+	if err := f.svc.VerificarEmail(context.Background(), "token-inexistente"); !errors.Is(err, model.ErrTokenInvalido) {
+		t.Fatalf("expected ErrTokenInvalido, got %v", err)
+	}
+}
+
+func TestAuthService_VerificarEmail_TokenVacio(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	// Si el servicio consultara la base, esta expectativa quedaría consumida.
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByToken)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	if err := f.svc.VerificarEmail(context.Background(), "   "); !errors.Is(err, model.ErrTokenInvalido) {
+		t.Fatalf("expected ErrTokenInvalido, got %v", err)
+	}
+	if err := f.mock.ExpectationsWereMet(); err == nil {
+		t.Fatal("un token vacío no debe llegar a la base de datos")
+	}
+}
+
+func TestAuthService_Reenviar_UsuarioPendiente(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+		AddRow(7, "Agustin", "re@test.com", "$2a$hash", "ARS", created, false)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+		WithArgs("re@test.com").
+		WillReturnRows(rows)
+	f.mock.ExpectExec(regexp.QuoteMeta(queryGuardarToken)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := f.svc.ReenviarVerificacion(context.Background(), ReenvioInput{Email: "re@test.com"}); err != nil {
+		t.Fatalf("ReenviarVerificacion returned error: %v", err)
+	}
+	if len(f.mailer.links) != 1 {
+		t.Fatalf("expected one resent email, got %d", len(f.mailer.links))
+	}
+}
+
+// Anti-enumeración: email desconocido y usuario ya verificado responden éxito
+// genérico y no envían nada.
+func TestAuthService_Reenviar_SinEfectoSoloGenerico(t *testing.T) {
+	t.Run("email desconocido", func(t *testing.T) {
+		f := newAuthServiceFixture(t)
+		f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+			WithArgs("nadie@test.com").
+			WillReturnError(sql.ErrNoRows)
+
+		if err := f.svc.ReenviarVerificacion(context.Background(), ReenvioInput{Email: "nadie@test.com"}); err != nil {
+			t.Fatalf("expected nil for unknown email, got %v", err)
+		}
+		if len(f.mailer.links) != 0 {
+			t.Errorf("must not send emails for unknown addresses")
+		}
+	})
+
+	t.Run("usuario ya verificado", func(t *testing.T) {
+		f := newAuthServiceFixture(t)
+		created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+			AddRow(7, "Agustin", "verif@test.com", "$2a$hash", "ARS", created, true)
+		f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+			WithArgs("verif@test.com").
+			WillReturnRows(rows)
+
+		if err := f.svc.ReenviarVerificacion(context.Background(), ReenvioInput{Email: "verif@test.com"}); err != nil {
+			t.Fatalf("expected nil for verified user, got %v", err)
+		}
+		if len(f.mailer.links) != 0 {
+			t.Errorf("must not send emails for already verified users")
+		}
+	})
+}
+
+// El reenvío regenera el token: el enlace viejo deja de funcionar porque su
+// hash ya no está en la base.
+func TestAuthService_Reenviar_InvalidaEnlaceAnterior(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+		AddRow(7, "Agustin", "re2@test.com", "$2a$hash", "ARS", created, false)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+		WithArgs("re2@test.com").
+		WillReturnRows(rows)
+	f.mock.ExpectExec(regexp.QuoteMeta(queryGuardarToken)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := f.svc.ReenviarVerificacion(context.Background(), ReenvioInput{Email: "re2@test.com"}); err != nil {
+		t.Fatalf("ReenviarVerificacion returned error: %v", err)
+	}
+
+	// El enlace anterior apunta a un hash distinto del recién guardado:
+	// simulo la búsqueda con el hash original y la DB responde sin filas.
+	viejoRaw, _, _ := generateVerificationToken()
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByToken)).
+		WithArgs(hashVerificationToken(viejoRaw)).
+		WillReturnError(sql.ErrNoRows)
+	if err := f.svc.VerificarEmail(context.Background(), viejoRaw); !errors.Is(err, model.ErrTokenInvalido) {
+		t.Fatalf("old link should be invalid after resend, got %v", err)
+	}
+}
+
+func TestAuthService_GenerateVerificationToken_Formato(t *testing.T) {
+	raw, hash, err := generateVerificationToken()
+	if err != nil {
+		t.Fatalf("generateVerificationToken: %v", err)
+	}
+	if len(raw) != 64 || len(hash) != 64 {
+		t.Fatalf("expected 64-char raw and hash, got %d/%d", len(raw), len(hash))
+	}
+	if hash != hashVerificationToken(raw) {
+		t.Error("hash must be the SHA-256 of the raw token")
 	}
 }
 

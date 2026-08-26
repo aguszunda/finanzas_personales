@@ -166,7 +166,7 @@ func schemaVersion(t *testing.T, db *sql.DB) (version int, dirty bool) {
 // Contrato del esquema: cada tabla con las columnas que la app espera. Se
 // verifican contra information_schema tras migrar desde los archivos.
 var expectedColumns = map[string][]string{
-	"usuarios":      {"id", "nombre", "email", "password_hash", "moneda_default", "created_at"},
+	"usuarios":      {"id", "nombre", "email", "password_hash", "moneda_default", "email_verificado", "token_verificacion", "token_expiracion", "created_at"},
 	"categorias":    {"id", "nombre", "tipo", "icono", "es_personalizada", "usuario_id", "created_at"},
 	"meses":         {"id", "usuario_id", "periodo", "estado", "ingresos_total", "egresos_total", "superavit", "tasa_ahorro", "ahorro_acumulado", "pasivos_total", "patrimonio", "created_at"},
 	"transacciones": {"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"},

@@ -37,6 +37,24 @@ func (h *PagesHandler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, "register", map[string]interface{}{"hideNav": true})
 }
 
+// VerificacionPage muestra el resultado de confirmar el email (o de pedir un
+// reenvío desde un form plano). El login queda intacto: los estados viven acá.
+func (h *PagesHandler) VerificacionPage(w http.ResponseWriter, r *http.Request) {
+	estado := r.URL.Query().Get("estado")
+	data := map[string]interface{}{
+		"hideNav":   true,
+		"Exito":     estado == "ok",
+		"Reenviado": estado == "reenviado",
+		"Expirado":  estado == "expirado",
+		"Invalido":  estado == "invalido",
+	}
+	renderTemplate(w, "verificacion", data)
+}
+
+func (h *PagesHandler) ReenvioPage(w http.ResponseWriter, r *http.Request) {
+	renderTemplate(w, "reenvio", map[string]interface{}{"hideNav": true})
+}
+
 func (h *PagesHandler) DashboardPage(w http.ResponseWriter, r *http.Request) {
 	uid := middleware.UserIDFromContext(r.Context())
 	periodo := r.URL.Query().Get("periodo")

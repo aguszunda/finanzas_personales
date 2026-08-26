@@ -159,6 +159,9 @@ func TestHandleServiceError_Mapping(t *testing.T) {
 		{model.ErrInvalidInput, http.StatusBadRequest},
 		{model.ErrEmailExiste, http.StatusConflict},
 		{model.ErrMesCerrado, http.StatusConflict},
+		{model.ErrEmailNoVerificado, http.StatusForbidden},
+		{model.ErrTokenExpirado, http.StatusBadRequest},
+		{model.ErrTokenInvalido, http.StatusBadRequest},
 		{errors.New("otro error"), http.StatusInternalServerError},
 		{model.ErrForbidden, http.StatusInternalServerError},
 	}
@@ -232,5 +235,29 @@ func TestRespondJSON_EncodeError(t *testing.T) {
 	respondJSON(rec, http.StatusOK, make(chan int))
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplate_NilTmpl(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = nil
+
+	rec := httptest.NewRecorder()
+	renderTemplate(rec, "test", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplateFragment_NilTmpl(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = nil
+
+	rec := httptest.NewRecorder()
+	renderTemplateFragment(rec, "test", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
 	}
 }

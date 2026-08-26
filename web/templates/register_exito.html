@@ -1,0 +1,24 @@
+{{define "register_exito"}}
+<div id="auth-panel">
+    <div class="modal-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="registro-exito-titulo">
+            <h2 id="registro-exito-titulo">Cuenta creada</h2>
+            <p style="color:var(--text-secondary)">
+                Te enviamos un email de verificación a <strong>{{.Email}}</strong>.
+                Confirmá tu dirección para poder iniciar sesión.
+            </p>
+            <p style="margin-bottom:0.5rem"><strong>¿No te llegó el email?</strong> Reenvialo acá:</p>
+            <form hx-post="/api/auth/reenviar-verificacion" hx-target="#auth-panel" hx-swap="outerHTML" method="post" action="/api/auth/reenviar-verificacion">
+                <div class="form-group">
+                    <label for="reenvio-email">Email</label>
+                    <input type="email" id="reenvio-email" name="email" required value="{{.Email}}">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%">Reenviar email de verificación</button>
+            </form>
+            <div class="modal-actions">
+                <a href="/login" class="btn btn-primary">Ir a iniciar sesión</a>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

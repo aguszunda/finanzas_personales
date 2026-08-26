@@ -11,3 +11,13 @@
 # desde un test ni aislarse sin refactorizaciones forzadas. Ya no contiene SQL:
 # las migraciones viven en migrations/*.sql y las ejecuta golang-migrate.
 ^cmd/server/main\.go
+#
+# internal/service/mailer.go — las funciones del smtpMailer (SendVerificacion,
+# dialSMTPS, dialSMTPStartTLS) abren conexiones TCP + TLS + protocolo SMTP real.
+# Solo se testea el path de logMailer (modo dev) en unit/integration.
+^internal/service/mailer\.go
+#
+# web/embed.go — los paths de panic dentro de TemplateFS/StaticFS/ImagesFS son
+# defensas contra un fallo de fs.Sub en los //go:embed; son garantías de
+# compilación que nunca se ejecutan en runtime.
+^web/embed\.go

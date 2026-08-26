@@ -17,6 +17,20 @@ import (
 	"github.com/go-chi/cors"
 )
 
+// mailerFactory elige la implementación de Mailer según configuración
+// (SMTP real si hay host; log por stdout en modo dev). Es una variable para que
+// los tests de integración puedan inyectar un mailer falso que capture los
+// enlaces enviados.
+var mailerFactory = func(cfg *config.Config) service.Mailer {
+	return service.NewMailer(service.SmtpConfig{
+		Host: cfg.SMTPHost,
+		Port: cfg.SMTPPort,
+		User: cfg.SMTPUser,
+		Pass: cfg.SMTPPass,
+		From: cfg.MailFrom,
+	})
+}
+
 // buildRouter wires the whole application: repositories, services, handlers,
 // middleware and routes. It is shared between main() and the integration tests
 // so both exercise the exact same stack.
@@ -31,7 +45,7 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 	mesRepo := repository.NewMesRepo(db)
 	deudaRepo := repository.NewDeudaRepo(db)
 
-	authSvc := service.NewAuthService(usuarioRepo, []byte(cfg.JWTSecret), cfg.JWTExpiration)
+	authSvc := service.NewAuthService(usuarioRepo, []byte(cfg.JWTSecret), cfg.JWTExpiration, mailerFactory(cfg), cfg.AppBaseURL)
 	transSvc := service.NewTransaccionService(transaccionRepo, mesRepo)
 	cfSvc := service.NewCostoFijoService(costoFijoRepo, mesRepo)
 	mesSvc := service.NewMesService(mesRepo, transaccionRepo, costoFijoRepo, deudaRepo)
@@ -74,6 +88,8 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 
 	r.Get("/login", pagesH.LoginPage)
 	r.Get("/register", pagesH.RegisterPage)
+	r.Get("/reenviar-verificacion", pagesH.ReenvioPage)
+	r.Get("/verificacion", pagesH.VerificacionPage)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := r.Cookie("token"); err == nil {
 			http.Redirect(w, r, "/api/dashboard/page", http.StatusFound)
@@ -85,6 +101,8 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 	r.Route("/api", func(r chi.Router) {
 		r.Post("/auth/register", authH.Register)
 		r.Post("/auth/login", authH.Login)
+		r.Get("/auth/verificar", authH.Verificar)
+		r.Post("/auth/reenviar-verificacion", authH.ReenviarVerificacion)
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.JWTAuth([]byte(cfg.JWTSecret)))

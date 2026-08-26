@@ -1,0 +1,14 @@
+#!/bin/sh
+# pre-push: bloquea el push si hay archivos fuera del formato canónico.
+# Corre el mismo chequeo que el CI (gofmt -l .): si pasa acá, pasa allá.
+# Se instala con: make git-hooks
+
+echo "==> gofmt: verificando formato..."
+UNFORMATTED="$(gofmt -l .)"
+if [ -n "$UNFORMATTED" ]; then
+    echo "Archivos sin gofmt:"
+    echo "$UNFORMATTED"
+    echo ""
+    echo "Corré 'make fmt' y volvé a pushear."
+    exit 1
+fi

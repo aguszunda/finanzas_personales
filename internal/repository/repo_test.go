@@ -78,12 +78,12 @@ func TestUsuarioRepo_FindByID(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewUsuarioRepo(db)
 
-	query := regexp.QuoteMeta(`SELECT id, nombre, email, password_hash, moneda_default, created_at
+	query := regexp.QuoteMeta(`SELECT id, nombre, email, password_hash, moneda_default, created_at, email_verificado
 		 FROM usuarios WHERE id = ?`)
 	created := time.Now()
 	mock.ExpectQuery(query).WithArgs(int64(1)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at"}).
-			AddRow(1, "Pepe", "pepe@test.com", "hash", "ARS", created))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+			AddRow(1, "Pepe", "pepe@test.com", "hash", "ARS", created, true))
 
 	u, err := r.FindByID(context.Background(), 1)
 	if err != nil {

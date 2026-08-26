@@ -17,9 +17,11 @@
 # Variables configurables desde env.secrets (gitignored, no en el repo).
 # Se cargan con `docker compose --env-file env.secrets ...` (ver Makefile):
 #   MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD,
-#   PORT, JWT_SECRET, JWT_EXPIRATION_HOURS, CORS_ORIGIN, LOG_LEVEL.
-# JWT_SECRET es obligatorio (sin default): sin él la app no arranca.
-# Los `:-default` inline son solo fallbacks de dev para que funcione sin archivo.
+#   PORT, JWT_SECRET, JWT_EXPIRATION_HOURS, CORS_ORIGIN, LOG_LEVEL,
+#   SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM, APP_BASE_URL.
+# SMTP_HOST no es configurable acá: siempre apunta a host.docker.internal
+# (Mailpit en la Mac). JWT_SECRET es obligatorio (sin default): sin él la app
+# no arranca. Los `:-default` inline son solo fallbacks de dev.
 
 name: finanzas
 
@@ -75,6 +77,16 @@ services:
       JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-72}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Envío de mails de verificación. SMTP_HOST fijo a host.docker.internal
+      # porque el Mailpit de desarrollo corre en la Mac host (localhost:1025):
+      # dentro del contenedor "localhost" es otro host y el envío fallaría.
+      # El resto de las variables viene de env.secrets, igual que en make run.
+      SMTP_HOST: host.docker.internal
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@optipay.local}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
     ports:
       - "${PORT:-8080}:8080"
     healthcheck:
