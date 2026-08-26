@@ -126,6 +126,28 @@ func TestJWTAuth_AlgNONE(t *testing.T) {
 	}
 }
 
+func TestJWTAuth_NonNumericSub(t *testing.T) {
+	secret := []byte("secret")
+	// Token válido pero con "sub" como string en vez de float64.
+	claims := jwt.MapClaims{
+		"sub": "not-a-number",
+		"exp": time.Now().Add(time.Hour).Unix(),
+		"iat": time.Now().Unix(),
+	}
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(secret)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	h := JWTAuth(secret)(newTestHandler())
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for non-numeric sub, got %d", rec.Code)
+	}
+}
+
 func TestUserIDFromContext_Missing(t *testing.T) {
 	if got := UserIDFromContext(httptest.NewRequest(http.MethodGet, "/", nil).Context()); got != 0 {
 		t.Errorf("expected 0, got %d", got)
