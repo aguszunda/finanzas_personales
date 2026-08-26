@@ -195,3 +195,49 @@ func TestReenvioPage(t *testing.T) {
 		t.Errorf("expected 200, got %d", rec.Code)
 	}
 }
+
+func TestForgotPasswordPage(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+
+	fs := fstest.MapFS{
+		"layout.html":          {Data: []byte(`<html>{{template "content" .}}</html>`)},
+		"forgot_password.html": {Data: []byte(`{{define "content"}}<div>forgot</div>{{end}}`)},
+	}
+	tmpl = newTestTemplateManager(fs)
+
+	h := &PagesHandler{}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/forgot-password", nil)
+	h.ForgotPasswordPage(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "forgot") {
+		t.Errorf("unexpected body: %s", rec.Body.String())
+	}
+}
+
+func TestForgotPasswordPage_ConEstadoExito(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+
+	fs := fstest.MapFS{
+		"layout.html":          {Data: []byte(`<html>{{template "content" .}}</html>`)},
+		"forgot_password.html": {Data: []byte(`{{define "content"}}{{if .Exito}}<div>exito</div>{{else}}<div>form</div>{{end}}{{end}}`)},
+	}
+	tmpl = newTestTemplateManager(fs)
+
+	h := &PagesHandler{}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/forgot-password?estado=ok", nil)
+	h.ForgotPasswordPage(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "exito") {
+		t.Errorf("expected exito state, got: %s", rec.Body.String())
+	}
+}

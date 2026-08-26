@@ -712,3 +712,57 @@ func TestAuthService_ResetPassword_TokenVacio(t *testing.T) {
 		t.Fatalf("expected ErrPasswordResetInvalido, got %v", err)
 	}
 }
+
+// --- ForgotPassword (cubrir paths faltantes) ---
+
+func TestAuthService_ForgotPassword_ErrorDBEnFindByEmail(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+		WithArgs("a@test.com").
+		WillReturnError(errors.New("db timeout"))
+
+	err := f.svc.ForgotPassword(context.Background(), ForgotPasswordInput{Email: "a@test.com"})
+	if err == nil {
+		t.Fatal("expected error from DB failure")
+	}
+}
+
+func TestAuthService_ForgotPassword_ErrorDBEnGuardarToken(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+		AddRow(7, "Agustin", "a@test.com", "$2a$hash", "ARS", created, true)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+		WithArgs("a@test.com").
+		WillReturnRows(rows)
+	f.mock.ExpectExec(regexp.QuoteMeta(queryGuardarPasswordReset)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), int64(7)).
+		WillReturnError(errors.New("db timeout"))
+
+	err := f.svc.ForgotPassword(context.Background(), ForgotPasswordInput{Email: "a@test.com"})
+	if err == nil {
+		t.Fatal("expected error from DB failure on save")
+	}
+	if len(f.mailer.links) != 0 {
+		t.Error("must not send email when DB save fails")
+	}
+}
+
+func TestAuthService_SendPasswordResetEmail_MailerFalloNoInvalida(t *testing.T) {
+	f := newAuthServiceFixture(t)
+	f.mailer.err = errors.New("smtp caido")
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+		AddRow(7, "Agustin", "a@test.com", "$2a$hash", "ARS", created, true)
+	f.mock.ExpectQuery(regexp.QuoteMeta(queryFindByEmail)).
+		WithArgs("a@test.com").
+		WillReturnRows(rows)
+	f.mock.ExpectExec(regexp.QuoteMeta(queryGuardarPasswordReset)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := f.svc.ForgotPassword(context.Background(), ForgotPasswordInput{Email: "a@test.com"})
+	if err != nil {
+		t.Fatalf("ForgotPassword should not fail when mailer errors, got: %v", err)
+	}
+}
