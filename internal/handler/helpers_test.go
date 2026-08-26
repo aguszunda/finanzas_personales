@@ -237,3 +237,27 @@ func TestRespondJSON_EncodeError(t *testing.T) {
 		t.Errorf("expected 200, got %d", rec.Code)
 	}
 }
+
+func TestRenderTemplate_NilTmpl(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = nil
+
+	rec := httptest.NewRecorder()
+	renderTemplate(rec, "test", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplateFragment_NilTmpl(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = nil
+
+	rec := httptest.NewRecorder()
+	renderTemplateFragment(rec, "test", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
