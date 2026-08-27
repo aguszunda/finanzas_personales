@@ -30,13 +30,25 @@
             </div>
         </form>
         <p class="text-center mt-1">
-            <a href="/forgot-password">¿Olvidaste tu contraseña?</a>
+            <a href="/forgot-password" id="forgot-link">¿Olvidaste tu contraseña?</a>
         </p>
         <p class="text-center mt-1">
             ¿No tenés cuenta? <a href="/register">Registrate</a>
         </p>
     </div>
     </div>
+    <script>
+    (function(){
+        var email = document.getElementById('email');
+        var link = document.getElementById('forgot-link');
+        if (email && link) {
+            email.addEventListener('input', function() {
+                var v = encodeURIComponent(this.value);
+                link.href = '/forgot-password' + (v ? '?email=' + v : '');
+            });
+        }
+    })();
+    </script>
     {{end}}
 </div>
 {{end}}

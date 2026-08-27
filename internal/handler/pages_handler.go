@@ -58,9 +58,11 @@ func (h *PagesHandler) ReenvioPage(w http.ResponseWriter, r *http.Request) {
 // ForgotPasswordPage renderiza el formulario de solicitud de reseteo de contraseña.
 func (h *PagesHandler) ForgotPasswordPage(w http.ResponseWriter, r *http.Request) {
 	estado := r.URL.Query().Get("estado")
+	email := r.URL.Query().Get("email")
 	data := map[string]interface{}{
 		"hideNav": true,
 		"Exito":   estado == "ok",
+		"Email":   email,
 	}
 	renderTemplate(w, "forgot_password", data)
 }
