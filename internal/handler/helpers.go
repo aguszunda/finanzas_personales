@@ -228,6 +228,10 @@ func handleServiceError(w http.ResponseWriter, err error) {
 		respondError(w, http.StatusBadRequest, "el enlace de verificación está expirado; pedí uno nuevo")
 	case errors.Is(err, model.ErrTokenInvalido):
 		respondError(w, http.StatusBadRequest, "el enlace de verificación no es válido")
+	case errors.Is(err, model.ErrPasswordResetInvalido):
+		respondError(w, http.StatusBadRequest, "el token de reseteo no es válido")
+	case errors.Is(err, model.ErrPasswordResetExpirado):
+		respondError(w, http.StatusBadRequest, "el token de reseteo está expirado")
 	default:
 		slog.Error("internal error", "error", err)
 		respondError(w, http.StatusInternalServerError, "error interno del servidor")

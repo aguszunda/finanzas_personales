@@ -19,10 +19,13 @@ var pageFragments = map[string][]string{
 	"deudas":        {"deuda_form"},
 	// register_exito es el pop-up post-alta (swap HTMX o render embebido);
 	// login_verificar es el pop-up al loguear una cuenta sin verificar;
-	// verificacion embebe el form de reenvío en sus estados de error.
-	"register":     {"register_exito"},
-	"login":        {"login_verificar"},
-	"verificacion": {"reenvio_form"},
+	// verificacion embebe el form de reenvío en sus estados de error;
+	// reset_password embebe los fragments de éxito y error del reseteo.
+	"register":        {"register_exito"},
+	"login":           {"login_verificar"},
+	"verificacion":    {"reenvio_form"},
+	"forgot_password": {"forgot_ok"},
+	"reset_password":  {"reset_ok", "reset_error"},
 }
 
 func NewTemplateManager(templatesFS fs.FS) *TemplateManager {

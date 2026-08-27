@@ -108,3 +108,39 @@ func (r *UsuarioRepo) MarcarVerificado(ctx context.Context, usuarioID int64) err
 	)
 	return err
 }
+
+// GuardarTokenPasswordReset persiste el hash del token de reseteo de contraseña
+// y su vencimiento. Regenerar el token invalida el enlace anterior.
+func (r *UsuarioRepo) GuardarTokenPasswordReset(ctx context.Context, usuarioID int64, tokenHash string, expira time.Time) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE usuarios SET password_reset_token = ?, password_reset_expiracion = ? WHERE id = ?`,
+		tokenHash, expira, usuarioID,
+	)
+	return err
+}
+
+// FindByPasswordResetToken busca al usuario por el hash del token de reseteo.
+// Devuelve ErrNotFound si el token no existe (inválido o ya consumido).
+func (r *UsuarioRepo) FindByPasswordResetToken(ctx context.Context, tokenHash string) (*model.Usuario, error) {
+	u := &model.Usuario{}
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, nombre, email, password_hash, moneda_default, created_at, email_verificado, password_reset_expiracion
+		 FROM usuarios WHERE password_reset_token = ?`, tokenHash,
+	).Scan(&u.ID, &u.Nombre, &u.Email, &u.PasswordHash, &u.MonedaDefault, &u.CreatedAt, &u.EmailVerificado, &u.PasswordResetExpiracion)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrNotFound
+		}
+		return nil, err
+	}
+	return u, nil
+}
+
+// ActualizarPassword cambia la contraseña del usuario y limpia el token de reseteo.
+func (r *UsuarioRepo) ActualizarPassword(ctx context.Context, usuarioID int64, passwordHash string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE usuarios SET password_hash = ?, password_reset_token = NULL, password_reset_expiracion = NULL WHERE id = ?`,
+		passwordHash, usuarioID,
+	)
+	return err
+}

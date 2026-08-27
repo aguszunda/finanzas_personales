@@ -37,6 +37,9 @@ const (
 
 	// verificationTokenTTL es la vigencia del enlace enviado por mail.
 	verificationTokenTTL = 48 * time.Hour
+
+	// passwordResetTokenTTL es la vigencia del enlace de reseteo de contraseña.
+	passwordResetTokenTTL = 30 * time.Minute
 )
 
 // validatePassword exige longitud entre 8 y 72 bytes (el límite que bcrypt
@@ -120,6 +123,21 @@ type RegisterResponse struct {
 
 type ReenvioInput struct {
 	Email string `json:"email"`
+}
+
+type ForgotPasswordInput struct {
+	Email string `json:"email"`
+}
+
+type ResetPasswordInput struct {
+	Token     string `json:"token"`
+	Password  string `json:"password"`
+	Password2 string `json:"password2"`
+}
+
+// ResetPasswordResponse confirma el cambio de contraseña.
+type ResetPasswordResponse struct {
+	Mensaje string `json:"mensaje"`
 }
 
 // generateVerificationToken devuelve el token crudo (va en el link) y su hash
@@ -267,6 +285,75 @@ func (s *AuthService) ReenviarVerificacion(ctx context.Context, input ReenvioInp
 	}
 	s.sendVerificacionEmail(ctx, u, rawToken)
 	return nil
+}
+
+// ForgotPassword genera un token de reseteo de contraseña y envía el email.
+// Responde éxito genérico aunque el email no exista para no permitir enumerar
+// cuentas registradas.
+func (s *AuthService) ForgotPassword(ctx context.Context, input ForgotPasswordInput) error {
+	email, err := normalizeEmail(input.Email)
+	if err != nil {
+		return nil // respuesta genérica, no revelar si el email es válido
+	}
+	u, err := s.usuarioRepo.FindByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	rawToken, tokenHash, err := generateVerificationToken()
+	if err != nil {
+		return err
+	}
+	if err := s.usuarioRepo.GuardarTokenPasswordReset(ctx, u.ID, tokenHash, time.Now().Add(passwordResetTokenTTL)); err != nil {
+		return err
+	}
+	s.sendPasswordResetEmail(ctx, u, rawToken)
+	return nil
+}
+
+// ResetPassword valida el token y la nueva contraseña, actualiza la contraseña
+// y limpia el token. El token debe ser válido y no estar expirado.
+func (s *AuthService) ResetPassword(ctx context.Context, input ResetPasswordInput) (*ResetPasswordResponse, error) {
+	if strings.TrimSpace(input.Token) == "" || len(input.Token) > 512 {
+		return nil, model.ErrPasswordResetInvalido
+	}
+	if input.Password != input.Password2 {
+		return nil, model.ErrPasswordInvalido
+	}
+	if err := validatePassword(input.Password); err != nil {
+		return nil, err
+	}
+	u, err := s.usuarioRepo.FindByPasswordResetToken(ctx, hashVerificationToken(input.Token))
+	if err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil, model.ErrPasswordResetInvalido
+		}
+		return nil, err
+	}
+	if u.PasswordResetExpiracion != nil && time.Now().After(*u.PasswordResetExpiracion) {
+		return nil, model.ErrPasswordResetExpirado
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.usuarioRepo.ActualizarPassword(ctx, u.ID, string(hash)); err != nil {
+		return nil, err
+	}
+	return &ResetPasswordResponse{
+		Mensaje: "Tu contraseña fue actualizada. Ya podés iniciar sesión.",
+	}, nil
+}
+
+// sendPasswordResetEmail arma el link y lo envía. Un fallo de envío NO invalida
+// la solicitud: el token queda válido para un reintento manual.
+func (s *AuthService) sendPasswordResetEmail(ctx context.Context, u *model.Usuario, rawToken string) {
+	link := s.baseURL + "/reset-password?token=" + rawToken
+	if err := s.mailer.SendPasswordReset(ctx, u.Email, u.Nombre, link); err != nil {
+		slog.Error("envío de email de reseteo de contraseña falló", "email", u.Email, "error", err)
+	}
 }
 
 func (s *AuthService) generateToken(userID int64) (string, error) {

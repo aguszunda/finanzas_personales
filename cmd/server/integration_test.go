@@ -30,6 +30,11 @@ func (f *fakeMailer) SendVerificacion(_ context.Context, _, _, link string) erro
 	return nil
 }
 
+func (f *fakeMailer) SendPasswordReset(_ context.Context, _, _, link string) error {
+	f.links = append(f.links, link)
+	return nil
+}
+
 func (f *fakeMailer) lastLink() string {
 	if len(f.links) == 0 {
 		return ""
@@ -515,6 +520,144 @@ func TestAuth_LoginWrongPassword(t *testing.T) {
 		"application/json", false)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestAuth_ForgotPassword_EmailExistente(t *testing.T) {
+	env := newTestEnv(t)
+	registerJSON(t, env, "forgot@test.com")
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/forgot-password", "",
+		`{"email":"forgot@test.com"}`,
+		"application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(env.mailer.links) == 0 {
+		t.Fatal("expected a reset email to be sent")
+	}
+	last := env.mailer.lastLink()
+	if !strings.Contains(last, "/reset-password?token=") {
+		t.Errorf("reset link malformed: %q", last)
+	}
+}
+
+func TestAuth_ForgotPassword_EmailInexistente(t *testing.T) {
+	env := newTestEnv(t)
+
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/forgot-password", "",
+		`{"email":"noexiste@test.com"}`,
+		"application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("anti-enumeration: expected 200, got %d", rec.Code)
+	}
+	if len(env.mailer.links) != 0 {
+		t.Error("must not send emails for unknown addresses")
+	}
+}
+
+func TestAuth_ResetPassword_FlujoCompleto(t *testing.T) {
+	env := newTestEnv(t)
+	registerJSON(t, env, "reset@test.com")
+
+	// 1. Solicitar reseteo
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/forgot-password", "",
+		`{"email":"reset@test.com"}`,
+		"application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("forgot-password: expected 200, got %d", rec.Code)
+	}
+
+	// 2. Extraer token del link capturado
+	link := env.mailer.lastLink()
+	rawToken := verificationTokenFromLink(link)
+	if rawToken == "" {
+		t.Fatal("no token captured in reset link")
+	}
+
+	// 3. Resetear contraseña
+	payload := fmt.Sprintf(`{"token":%q,"password":"nuevaclave1","password2":"nuevaclave1"}`, rawToken)
+	rec = doReq(t, env.router, http.MethodPost, "/api/auth/reset-password", "",
+		payload, "application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reset-password: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 4. Login con contraseña vieja debe fallar
+	rec = doReq(t, env.router, http.MethodPost, "/api/auth/login", "",
+		`{"email":"reset@test.com","password":"secreto123"}`,
+		"application/json", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("old password should fail: expected 401, got %d", rec.Code)
+	}
+
+	// 5. Login con contraseña nueva debe funcionar
+	rec = doReq(t, env.router, http.MethodPost, "/api/auth/login", "",
+		`{"email":"reset@test.com","password":"nuevaclave1"}`,
+		"application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("new password login: expected 200, got %d", rec.Code)
+	}
+}
+
+func TestAuth_ResetPassword_TokenInvalido(t *testing.T) {
+	env := newTestEnv(t)
+
+	payload := `{"token":"token-falso","password":"nuevaclave1","password2":"nuevaclave1"}`
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/reset-password", "",
+		payload, "application/json", false)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid token, got %d", rec.Code)
+	}
+}
+
+func TestAuth_ResetPassword_TokenReutilizado(t *testing.T) {
+	env := newTestEnv(t)
+	registerJSON(t, env, "reuse@test.com")
+
+	// Solicitar reseteo
+	doReq(t, env.router, http.MethodPost, "/api/auth/forgot-password", "",
+		`{"email":"reuse@test.com"}`, "application/json", false)
+	link := env.mailer.lastLink()
+	rawToken := verificationTokenFromLink(link)
+
+	// Primer uso: éxito
+	payload := fmt.Sprintf(`{"token":%q,"password":"nuevaclave1","password2":"nuevaclave1"}`, rawToken)
+	rec := doReq(t, env.router, http.MethodPost, "/api/auth/reset-password", "",
+		payload, "application/json", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first use: expected 200, got %d", rec.Code)
+	}
+
+	// Segundo uso: token ya consumido
+	rec = doReq(t, env.router, http.MethodPost, "/api/auth/reset-password", "",
+		payload, "application/json", false)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("reuse: expected 400, got %d", rec.Code)
+	}
+}
+
+func TestPages_ForgotPassword(t *testing.T) {
+	env := newTestEnv(t)
+
+	rec := doReq(t, env.router, http.MethodGet, "/forgot-password", "", "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Recuperar contraseña") {
+		t.Error("forgot-password page missing marker")
+	}
+}
+
+func TestPages_ResetPassword(t *testing.T) {
+	env := newTestEnv(t)
+
+	rec := doReq(t, env.router, http.MethodGet, "/reset-password?token=abc123", "", "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "abc123") {
+		t.Error("reset-password page should contain token")
 	}
 }
 
