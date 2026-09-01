@@ -21,6 +21,11 @@ propio) y a `PRODUCCION-EMAIL.md` (email Brevo). Esta guía es la variante de
 > el free tier dejó de estar abierto a usuarios nuevos. Back4app Containers es el
 > reemplazo equivalente: $0 sin tarjeta, deploy por `Dockerfile` desde GitHub.
 
+> **Estado: DESPLEGADO EN PRODUCCIÓN (2026-09-01).** La app corre en
+> `https://optipay-7zvs7tgt.b4a.run`, con DB Aiven migrada, email Brevo funcionando
+> (SMTP 587 saliendo bien desde el contenedor) y conexión a la DB desde MySQL
+> Workbench verificada.
+
 ---
 
 ## 1. Resumen del stack en la nube
@@ -38,7 +43,7 @@ propio) y a `PRODUCCION-EMAIL.md` (email Brevo). Esta guía es la variante de
 - 0.25 CPU / 256 MB RAM / 100 GB transferencia / CPU compartida / región USA.
 - 1 web/container app por plan gratuito.
 - **Deploy por `Dockerfile`** desde GitHub (no necesita docker-compose).
-- **URL pública `https://<app>.back4app.app` con TLS (HTTPS) automático.**
+- **URL pública `https://<app>-<hash>.b4a.run` con TLS (HTTPS) automático.**
 - **No pide tarjeta** (confirmado en su FAQ de pricing).
 - **Egress de salida:** Back4app corre los contenedores sobre AWS. AWS por defecto
   bloquea el puerto **25**, pero **permite 465 y 587** (SMTP Submission con TLS).
@@ -140,6 +145,21 @@ mysql --user avnadmin --password=PASS --host HOST.f.aivencloud.com --port PUERTO
 > /tmp/opencode/migrate -source file://migrations -database "mysql://$(DATABASE_URL)" up
 > ```
 
+### Conexión a la DB desde MySQL Workbench (verificado)
+
+```
+Connection Method: Standard (TCP/IP)
+Hostname:          finanzas-db-agustin-7da4.e.aivencloud.com
+Port:              15639
+Username:          avnadmin
+Password:          <password de avnadmin>
+Default Schema:    defaultdb
+SSL tab:           Require / Skip Verification   (CA de Aiven no está en el trust store)
+```
+
+Aiven exige TLS; elegir **Skip Verification** en la pestaña SSL de Workbench evita el
+error `certificate signed by unknown authority`.
+
 ---
 
 ## 5. Paso 2: preparar el deploy de la app en Back4app Containers
@@ -160,8 +180,11 @@ van embebidos en el binario vía `go:embed`, así que el `COPY --from=builder
 4. Back4app detecta el `Dockerfile` en la raíz y lo usa para construir.
 5. Back4app asigna el **puerto de escucha** vía la variable `PORT`; la app ya lee
    `PORT` (default 8080) → no hace falta mapeo manual.
-6. Al terminar, Back4app te da una **URL pública** `https://<app>.back4app.app`
+6. Al terminar, Back4app te da una **URL pública** `https://<app>-<hash>.b4a.run`
    con HTTPS automático. Esa es tu `APP_BASE_URL`.
+
+> **Deploy real de este proyecto:** `https://optipay-7zvs7tgt.b4a.run` (la URL la
+> asigna Back4app, formato `https://<app>-<hash>.b4a.run`).
 
 ---
 
@@ -174,7 +197,7 @@ PORT=8080
 DATABASE_URL=<EL DSN CON @tcp(...) y tls=skip-verify del paso 0>
 JWT_SECRET=<NUEVO_SECRET_64_CARACTERES>      # openssl rand -hex 32
 JWT_EXPIRATION_HOURS=72
-CORS_ORIGIN=<origen real, p. ej. https://<app>.back4app.app>
+CORS_ORIGIN=<https://<app>-<hash>.b4a.run>
 LOG_LEVEL=info
 
 # Email (Brevo) — se valida que 587 NO esté bloqueado en Back4app
@@ -183,22 +206,26 @@ SMTP_PORT=587
 SMTP_USER=b70c2b001@smtp-brevo.com
 SMTP_PASS=<SMTP_KEY_xsmtpsib-...>            # SMTP key, NO la API key
 MAIL_FROM=agustin.zunda@gmail.com
-APP_BASE_URL=https://<app>.back4app.app
+APP_BASE_URL=https://<app>-<hash>.b4a.run
 ```
 
 > `APP_BASE_URL` es **crítico**: arma el link del mail de verificación y de reset de
 > contraseña (`/api/auth/verificar?token=...`). Debe apuntar a la URL pública HTTPS
-> que te dio Back4app.
+> que te dio Back4app (`https://<app>-<hash>.b4a.run`, sin `/login` ni slash final).
 
 ---
 
 ## 7. Paso 4: verificar el despliegue
 
-1. Abrir la URL pública de Back4app → `https://<app>.back4app.app/health` → `200`.
+> Este paso está **COMPLETADO** en producción (2026-09-01): todos los puntos
+> siguientes fueron verificados contra `https://optipay-7zvs7tgt.b4a.run`. Se dejan
+> los pasos documentados por si hay que repetir la validación tras un redeploy.
+
+1. Abrir la URL pública de Back4app → `https://<app>-<hash>.b4a.run/health` → `200`.
 2. **Registrar** usuario → debe llegar "Confirmá tu cuenta en Optipay" al inbox real
-   (**valida en este punto que Brevo por 587 funciona desde el contenedor de
-   Back4app**). Si el mail no llega, mirar los logs del contenedor por
-   `envío de email ... falló` (timeout de conexión a 587 = puerto bloqueado).
+   (**valida que Brevo por 587 funciona desde el contenedor de Back4app**). Si el
+   mail no llega, mirar los logs del contenedor por `envío de email ... falló`
+   (timeout de conexión a 587 = puerto bloqueado).
 3. Click en el link → "Email confirmado. Ya podés iniciar sesión."
 4. **Login** OK. Login sin verificar → `409 ErrEmailNoVerificado`.
 5. `/forgot-password` → llega "Recuperá tu contraseña" → reset → login.
@@ -208,13 +235,16 @@ APP_BASE_URL=https://<app>.back4app.app
 
 ## 8. Checklist de validación
 
-- [ ] `DATABASE_URL` contiene `@tcp(...)` y `tls=skip-verify`.
-- [ ] Base Aiven migrada (001..007) — verificado.
-- [ ] App desplegada desde GitHub con el `Dockerfile` de la raíz, puerto vía `PORT`.
-- [ ] Health check `/health` = 200 en Back4app.
-- [ ] Variables cargadas en Back4app (secretos), incluido `APP_BASE_URL` HTTPS.
-- [ ] Email de verificación real llega (Brevo 587 desde el contenedor de Back4app).
-- [ ] Reset de contraseña funciona (segundo email real).
+> Estado real al 2026-09-01: todo verificado en producción.
+
+- [x] `DATABASE_URL` contiene `@tcp(...)` y `tls=skip-verify`.
+- [x] Base Aiven migrada (001..007) — verificado.
+- [x] App desplegada desde GitHub con el `Dockerfile` de la raíz, puerto vía `PORT`.
+- [x] Health check `/health` = 200 en Back4app.
+- [x] Variables cargadas en Back4app (secretos), incluido `APP_BASE_URL` HTTPS.
+- [x] Email de verificación real llega (Brevo 587 desde el contenedor de Back4app).
+- [x] Reset de contraseña funciona (segundo email real).
+- [x] Conexión a la DB desde MySQL Workbench (TLS / Skip Verification).
 
 ---
 
