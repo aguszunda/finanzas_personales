@@ -116,7 +116,12 @@ func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64, pe
 	// ventana reemplaza los 10 días por el período completo.
 	desde, hasta := rango10Dias()
 	if periodo != "" {
-		desde, hasta = periodo+"-01", periodo+"-31"
+		desde = periodo + "-01"
+		pt, err := time.Parse("2006-01", periodo)
+		if err != nil {
+			return nil, err
+		}
+		hasta = time.Date(pt.Year(), pt.Month()+1, 0, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
 	}
 	transaccionesUltimos, err := s.transaccionRepo.FindByRango(ctx, usuarioID, desde, hasta)
 	if err != nil {
