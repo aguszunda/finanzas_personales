@@ -17,4 +17,6 @@ regexes = [
 ]
 paths = [
     "docs/API.md",
+    ".env.example",
+    "internal/config/config_test.go",
 ]
