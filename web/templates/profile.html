@@ -1,0 +1,44 @@
+{{define "content"}}
+<div class="card">
+    <h2>Mi Perfil</h2>
+    <p style="color:var(--text-secondary);margin-bottom:1.5rem">Administrá tus datos personales.</p>
+
+    <h3 style="margin-bottom:0.75rem">Datos personales</h3>
+    <div class="card" style="margin-bottom:1.5rem">
+        <div id="nombre-view">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+                <div>
+                    <strong>Nombre</strong>
+                    <p style="color:var(--text-secondary);margin:0.25rem 0 0">{{.Usuario.Nombre}}</p>
+                </div>
+                <button type="button" class="btn btn-outline"
+                        onclick="document.getElementById('nombre-view').style.display='none';document.getElementById('nombre-form').style.display='block';">Cambiar nombre</button>
+            </div>
+        </div>
+        <div id="nombre-form" style="display:none">
+            <form hx-post="/api/profile/nombre" hx-swap="none" method="post" action="/api/profile/nombre">
+                <div class="form-group">
+                    <label for="nombre">Nuevo nombre</label>
+                    <input type="text" id="nombre" name="nombre" value="{{.Usuario.Nombre}}" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline"
+                            onclick="document.getElementById('nombre-form').style.display='none';document.getElementById('nombre-view').style.display='block';">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <h3 style="margin-bottom:0.75rem">Seguridad</h3>
+    <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+            <div>
+                <strong>Contraseña</strong>
+                <p style="color:var(--text-secondary);margin:0.25rem 0 0">Cambiá tu contraseña para mantener tu cuenta segura.</p>
+            </div>
+            <a href="/api/profile/password/page" hx-boost="false" class="btn btn-outline">Cambiar contraseña</a>
+        </div>
+    </div>
+</div>
+{{end}}

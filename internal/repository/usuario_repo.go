@@ -144,3 +144,12 @@ func (r *UsuarioRepo) ActualizarPassword(ctx context.Context, usuarioID int64, p
 	)
 	return err
 }
+
+// ActualizarNombre cambia el nombre del usuario.
+func (r *UsuarioRepo) ActualizarNombre(ctx context.Context, usuarioID int64, nombre string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE usuarios SET nombre = ? WHERE id = ?`,
+		nombre, usuarioID,
+	)
+	return err
+}

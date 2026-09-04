@@ -23,6 +23,16 @@
             <a href="/api/deudas/page">Deudas</a>
             <a href="/api/balance/page">Balance</a>
             <a href="/api/meses/page">Meses</a>
+            <div class="nav-user">
+                <button class="nav-user-btn" onclick="this.parentElement.classList.toggle('open')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <span>{{.userName}}</span>
+                </button>
+                <div class="nav-user-dropdown">
+                    <a href="/api/profile/page">Actualizar perfil</a>
+                    <a href="/api/auth/logout" hx-boost="false">Cerrar sesión</a>
+                </div>
+            </div>
         </div>
     </nav>
     {{end}}
@@ -49,6 +59,11 @@
             } else if (path.indexOf('/login') !== -1 && xhr.status === 401) {
                 var pw = document.getElementById('password');
                 if (pw) pw.value = '';
+            } else if (path.indexOf('/profile/password') !== -1) {
+                var pwActual = document.getElementById('password_actual');
+                var pw2 = document.getElementById('password2');
+                if (pwActual) pwActual.value = '';
+                if (pw2) pw2.value = '';
             }
             showAlertModal(text, 'error', action);
         });
@@ -107,6 +122,18 @@
             btn.setAttribute('aria-pressed', String(show));
             btn.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
         });
+        document.addEventListener('click', function(evt) {
+            var userNav = evt.target.closest ? evt.target.closest('.nav-user') : null;
+            if (!userNav) {
+                document.querySelectorAll('.nav-user.open').forEach(function(el) {
+                    el.classList.remove('open');
+                });
+            }
+        });
+        ;(function() {
+            var name = document.querySelector('.nav-user-btn span');
+            if (name) name.textContent = name.textContent.toUpperCase();
+        })();
     </script>
     <div id="alert-modal" class="modal-overlay" style="display:none"
          onclick="if(event.target===this)this.style.display='none'">

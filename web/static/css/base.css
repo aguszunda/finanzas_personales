@@ -48,3 +48,53 @@ nav a {
 }
 
 nav a:hover { background: var(--bg); }
+
+.nav-user {
+    margin-left: auto;
+    position: relative;
+}
+
+.nav-user-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--text);
+    font-family: inherit;
+    transition: background 0.2s;
+}
+
+.nav-user-btn:hover { background: var(--bg); }
+
+.nav-user-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 0.25rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    min-width: 180px;
+    z-index: 100;
+    overflow: hidden;
+}
+
+.nav-user.open .nav-user-dropdown { display: block; }
+
+.nav-user-dropdown a {
+    display: block;
+    padding: 0.6rem 1rem;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: background 0.15s;
+}
+
+.nav-user-dropdown a:hover { background: var(--bg); }

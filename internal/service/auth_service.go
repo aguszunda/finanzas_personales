@@ -356,6 +356,55 @@ func (s *AuthService) sendPasswordResetEmail(ctx context.Context, u *model.Usuar
 	}
 }
 
+type UpdateNombreInput struct {
+	Nombre string `json:"nombre"`
+}
+
+type UpdatePasswordInput struct {
+	PasswordActual string `json:"password_actual"`
+	PasswordNuevo  string `json:"password_nuevo"`
+	Password2      string `json:"password2"`
+}
+
+// GetUsuario devuelve el usuario por ID.
+func (s *AuthService) GetUsuario(ctx context.Context, userID int64) (*model.Usuario, error) {
+	return s.usuarioRepo.FindByID(ctx, userID)
+}
+
+// UpdateNombre cambia el nombre del usuario autenticado.
+func (s *AuthService) UpdateNombre(ctx context.Context, userID int64, input UpdateNombreInput) error {
+	nombre := strings.TrimSpace(input.Nombre)
+	if nombre == "" {
+		return model.ErrInvalidInput
+	}
+	return s.usuarioRepo.ActualizarNombre(ctx, userID, nombre)
+}
+
+// UpdatePassword valida la contraseña actual y reemplaza por la nueva.
+func (s *AuthService) UpdatePassword(ctx context.Context, userID int64, input UpdatePasswordInput) error {
+	u, err := s.usuarioRepo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(input.PasswordActual)); err != nil {
+		return model.ErrUnauthorized
+	}
+	if input.PasswordNuevo != input.Password2 {
+		return model.ErrPasswordInvalido
+	}
+	if err := validatePassword(input.PasswordNuevo); err != nil {
+		return err
+	}
+	if strings.TrimSpace(input.PasswordNuevo) == strings.TrimSpace(input.PasswordActual) {
+		return model.ErrPasswordIgualAnterior
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.PasswordNuevo), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.usuarioRepo.ActualizarPassword(ctx, userID, string(hash))
+}
+
 func (s *AuthService) generateToken(userID int64) (string, error) {
 	claims := jwt.MapClaims{
 		"sub": float64(userID),

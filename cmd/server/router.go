@@ -59,7 +59,7 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 	deudaH := handler.NewDeudaHandler(deudaSvc)
 	dashH := handler.NewDashboardHandler(dashSvc)
 	catH := handler.NewCategoriaHandler(categoriaRepo)
-	pagesH := handler.NewPagesHandler(dashSvc, transSvc, cfSvc, mesSvc, deudaSvc, categoriaRepo)
+	pagesH := handler.NewPagesHandler(dashSvc, transSvc, cfSvc, mesSvc, deudaSvc, categoriaRepo, authSvc)
 
 	r := chi.NewRouter()
 
@@ -158,6 +158,12 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 			r.Get("/balance/{id}/page", pagesH.BalancePage)
 			r.Get("/meses/page", pagesH.MesesPage)
 			r.Get("/deudas/page", pagesH.DeudasPage)
+
+			r.Get("/profile/page", authH.ProfilePage)
+			r.Get("/profile/password/page", authH.ChangePasswordPage)
+			r.Post("/profile/nombre", authH.UpdateNombre)
+			r.Post("/profile/password", authH.UpdatePassword)
+			r.Get("/auth/logout", authH.Logout)
 		})
 	})
 
