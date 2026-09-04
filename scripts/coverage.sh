@@ -26,7 +26,12 @@ trap 'rm -f "$profile"' EXIT
 # app (cmd/server solo llama a main(); no aporta lógica medible y ensucia la
 # métrica), igual que hace `go test ./...` con los tests.
 module="$(go list -m)"
-pkgs="$(go list ./... | grep -vx "$module" | tr '\n' ' ')"
+# Se excluye también optipay/cmd/server: según el comentario de abajo, el
+# wrapper principal solo llama a main() y no aporta lógica medible; su main.go
+# (arranque de la app) no es testeable sin refactor y ensuciaría la métrica.
+# grep -vx "$module" NO es suficiente: solo eliminaría una línea literal igual
+# al módulo ("optipay"), que no aparece en `go list ./...`.
+pkgs="$(go list ./... | grep -v "${module}/cmd/server" | grep -vx "$module" | tr '\n' ' ')"
 
 echo "==> go test ${GOTEST_FLAGS:-} -covermode=atomic (min coverage: ${MIN_COVERAGE} %)"
 # GOTEST_FLAGS y pkgs se expanden a propósito para permitir banderas extra y

@@ -133,8 +133,8 @@ jobs:
       - name: Tests unitarios e integración
         run: make test
 
-      - name: Cobertura (mínimo 47 %)
-        run: MIN_COVERAGE=47 ./scripts/coverage.sh
+      - name: Cobertura (mínimo 85 %)
+        run: MIN_COVERAGE=85 ./scripts/coverage.sh
 
       - name: Subir reporte de cobertura
         uses: actions/upload-artifact@v4
