@@ -21,12 +21,26 @@ type PagesHandler struct {
 	mesSvc       *service.MesService
 	deudaSvc     *service.DeudaService
 	catRepo      *repository.CategoriaRepo
+	authSvc      *service.AuthService
 }
 
-func NewPagesHandler(ds *service.DashboardService, ts *service.TransaccionService, cfs *service.CostoFijoService, ms *service.MesService, ds2 *service.DeudaService, cr *repository.CategoriaRepo) *PagesHandler {
+func NewPagesHandler(ds *service.DashboardService, ts *service.TransaccionService, cfs *service.CostoFijoService, ms *service.MesService, ds2 *service.DeudaService, cr *repository.CategoriaRepo, as *service.AuthService) *PagesHandler {
 	return &PagesHandler{
-		dashboardSvc: ds, transSvc: ts, cfSvc: cfs, mesSvc: ms, deudaSvc: ds2, catRepo: cr,
+		dashboardSvc: ds, transSvc: ts, cfSvc: cfs, mesSvc: ms, deudaSvc: ds2, catRepo: cr, authSvc: as,
 	}
+}
+
+// userName devuelve el nombre del usuario autenticado para el nav.
+func (h *PagesHandler) userName(r *http.Request) string {
+	uid := middleware.UserIDFromContext(r.Context())
+	if uid == 0 {
+		return ""
+	}
+	u, err := h.authSvc.GetUsuario(r.Context(), uid)
+	if err != nil {
+		return ""
+	}
+	return u.Nombre
 }
 
 func (h *PagesHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
@@ -72,15 +86,16 @@ func (h *PagesHandler) DashboardPage(w http.ResponseWriter, r *http.Request) {
 	periodo := r.URL.Query().Get("periodo")
 	data, err := h.dashboardSvc.GetDashboard(r.Context(), uid, periodo)
 	if err != nil {
-		renderTemplate(w, "dashboard", map[string]interface{}{"error": err.Error()})
+		renderTemplate(w, "dashboard", map[string]interface{}{"error": err.Error(), "userName": h.userName(r)})
 		return
 	}
 	meses, _ := h.mesSvc.List(r.Context(), uid)
 	renderTemplate(w, "dashboard", map[string]interface{}{
-		"error":   "",
-		"d":       data,
-		"meses":   meses,
-		"periodo": periodo,
+		"error":    "",
+		"d":        data,
+		"meses":    meses,
+		"periodo":  periodo,
+		"userName": h.userName(r),
 	})
 }
 
@@ -98,7 +113,7 @@ func (h *PagesHandler) TransaccionesPage(w http.ResponseWriter, r *http.Request)
 		transacciones, err = h.transSvc.ListByPeriodo(r.Context(), uid, periodo)
 	}
 	if err != nil {
-		renderTemplate(w, "transacciones", map[string]interface{}{"error": err.Error()})
+		renderTemplate(w, "transacciones", map[string]interface{}{"error": err.Error(), "userName": h.userName(r)})
 		return
 	}
 	cats, _ := h.catRepo.FindAll(r.Context(), uid)
@@ -108,6 +123,7 @@ func (h *PagesHandler) TransaccionesPage(w http.ResponseWriter, r *http.Request)
 		"categorias":    cats,
 		"meses":         meses,
 		"periodo":       periodo,
+		"userName":      h.userName(r),
 	})
 }
 
@@ -115,13 +131,14 @@ func (h *PagesHandler) CostosFijosPage(w http.ResponseWriter, r *http.Request) {
 	uid := middleware.UserIDFromContext(r.Context())
 	list, err := h.cfSvc.List(r.Context(), uid)
 	if err != nil {
-		renderTemplate(w, "costos_fijos", map[string]interface{}{"error": err.Error()})
+		renderTemplate(w, "costos_fijos", map[string]interface{}{"error": err.Error(), "userName": h.userName(r)})
 		return
 	}
 	cats, _ := h.catRepo.FindAll(r.Context(), uid)
 	renderTemplate(w, "costos_fijos", map[string]interface{}{
 		"costos_fijos": list,
 		"categorias":   cats,
+		"userName":     h.userName(r),
 	})
 }
 
@@ -129,10 +146,10 @@ func (h *PagesHandler) MesesPage(w http.ResponseWriter, r *http.Request) {
 	uid := middleware.UserIDFromContext(r.Context())
 	meses, err := h.mesSvc.List(r.Context(), uid)
 	if err != nil {
-		renderTemplate(w, "meses", map[string]interface{}{"error": err.Error()})
+		renderTemplate(w, "meses", map[string]interface{}{"error": err.Error(), "userName": h.userName(r)})
 		return
 	}
-	renderTemplate(w, "meses", map[string]interface{}{"meses": meses})
+	renderTemplate(w, "meses", map[string]interface{}{"meses": meses, "userName": h.userName(r)})
 }
 
 func (h *PagesHandler) BalancePage(w http.ResponseWriter, r *http.Request) {
@@ -141,12 +158,12 @@ func (h *PagesHandler) BalancePage(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(idStr, 10, 64)
 	mes, transacciones, err := h.mesSvc.Balance(r.Context(), uid, id)
 	if err != nil {
-		renderTemplate(w, "balance", map[string]interface{}{"error": err.Error()})
+		renderTemplate(w, "balance", map[string]interface{}{"error": err.Error(), "userName": h.userName(r)})
 		return
 	}
 	deudas, err := h.deudaSvc.List(r.Context(), uid)
 	if err != nil {
-		renderTemplate(w, "balance", map[string]interface{}{"error": err.Error()})
+		renderTemplate(w, "balance", map[string]interface{}{"error": err.Error(), "userName": h.userName(r)})
 		return
 	}
 	var deudasPendientes []model.Deuda
@@ -159,6 +176,7 @@ func (h *PagesHandler) BalancePage(w http.ResponseWriter, r *http.Request) {
 		"mes":           mes,
 		"transacciones": transacciones,
 		"deudas":        deudasPendientes,
+		"userName":      h.userName(r),
 	})
 }
 
@@ -166,12 +184,13 @@ func (h *PagesHandler) DeudasPage(w http.ResponseWriter, r *http.Request) {
 	uid := middleware.UserIDFromContext(r.Context())
 	deudas, err := h.deudaSvc.List(r.Context(), uid)
 	if err != nil {
-		renderTemplate(w, "deudas", map[string]interface{}{"error": err.Error()})
+		renderTemplate(w, "deudas", map[string]interface{}{"error": err.Error(), "userName": h.userName(r)})
 		return
 	}
 	renderTemplate(w, "deudas", map[string]interface{}{
 		"deudas":     deudas,
 		"categorias": h.categoriasEgreso(r),
+		"userName":   h.userName(r),
 	})
 }
 

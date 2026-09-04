@@ -195,3 +195,76 @@ func setAuthCookie(w http.ResponseWriter, token string) {
 		MaxAge:   72 * 60 * 60,
 	})
 }
+
+// ProfilePage renderiza la página de perfil del usuario autenticado.
+func (h *AuthHandler) ProfilePage(w http.ResponseWriter, r *http.Request) {
+	uid := middleware.UserIDFromContext(r.Context())
+	u, err := h.svc.GetUsuario(r.Context(), uid)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	renderTemplate(w, "profile", map[string]interface{}{
+		"Usuario":  u,
+		"userName": u.Nombre,
+	})
+}
+
+// ChangePasswordPage renderiza la página de cambio de contraseña del usuario
+// autenticado (reutiliza el estilo de reset_password pero sin token: pide la
+// contraseña actual y valida contra la cuenta en sesión).
+func (h *AuthHandler) ChangePasswordPage(w http.ResponseWriter, r *http.Request) {
+	uid := middleware.UserIDFromContext(r.Context())
+	u, err := h.svc.GetUsuario(r.Context(), uid)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	renderTemplate(w, "cambiar_password", map[string]interface{}{
+		"userName": u.Nombre,
+	})
+}
+
+// UpdateNombre actualiza el nombre del usuario autenticado.
+func (h *AuthHandler) UpdateNombre(w http.ResponseWriter, r *http.Request) {
+	uid := middleware.UserIDFromContext(r.Context())
+	var input service.UpdateNombreInput
+	if err := decodeBody(r, &input); err != nil {
+		respondError(w, http.StatusBadRequest, "formulario inválido")
+		return
+	}
+	if err := h.svc.UpdateNombre(r.Context(), uid, input); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	respondMutation(w, r, http.StatusOK, map[string]string{"mensaje": "nombre actualizado"}, "/api/profile/page")
+}
+
+// UpdatePassword cambia la contraseña del usuario autenticado.
+func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
+	uid := middleware.UserIDFromContext(r.Context())
+	var input service.UpdatePasswordInput
+	if err := decodeBody(r, &input); err != nil {
+		respondError(w, http.StatusBadRequest, "formulario inválido")
+		return
+	}
+	if err := h.svc.UpdatePassword(r.Context(), uid, input); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	respondMutation(w, r, http.StatusOK, map[string]string{"mensaje": "contraseña actualizada"}, "/api/profile/page")
+}
+
+// Logout elimina la cookie de sesión y redirige al login.
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
