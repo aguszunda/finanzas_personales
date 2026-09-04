@@ -190,6 +190,26 @@ func TestAuthService_UpdatePassword_InvalidNewPassword(t *testing.T) {
 	}
 }
 
+func TestAuthService_UpdatePassword_SameAsCurrent(t *testing.T) {
+	svc, mock := newAuthService(t)
+	hash, _ := bcrypt.GenerateFromPassword([]byte("claveActual1"), bcrypt.MinCost)
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(regexp.QuoteMeta(queryUsuarioFindByID)).
+		WithArgs(int64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+			AddRow(5, "Agustin", "a@test.com", string(hash), "ARS", created, true))
+
+	err := svc.UpdatePassword(context.Background(), 5, UpdatePasswordInput{
+		PasswordActual: "claveActual1",
+		PasswordNuevo:  "claveActual1",
+		Password2:      "claveActual1",
+	})
+	if !errors.Is(err, model.ErrPasswordIgualAnterior) {
+		t.Fatalf("expected ErrPasswordIgualAnterior, got %v", err)
+	}
+}
+
 func TestAuthService_UpdatePassword_UserNotFound(t *testing.T) {
 	svc, mock := newAuthService(t)
 	mock.ExpectQuery(regexp.QuoteMeta(queryUsuarioFindByID)).

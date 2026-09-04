@@ -105,14 +105,6 @@ func TestLogging_Middleware_NoExplicitWriteHeader(t *testing.T) {
 	}
 }
 
-func TestResponseWriter_DefaultStatus(t *testing.T) {
-	rec := httptest.NewRecorder()
-	rw := &responseWriter{ResponseWriter: rec, status: http.StatusOK}
-	if rw.status != http.StatusOK {
-		t.Fatalf("expected default status 200, got %d", rw.status)
-	}
-}
-
 func TestDetectHTMX_WrongHeaderValue(t *testing.T) {
 	var got bool
 	h := DetectHTMX(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

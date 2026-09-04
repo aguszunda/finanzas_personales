@@ -1043,6 +1043,32 @@ func TestAuthHandler_UpdatePassword_WrongCurrentPassword(t *testing.T) {
 	}
 }
 
+func TestAuthHandler_UpdatePassword_SameAsCurrent(t *testing.T) {
+	f := newHandlerFixture(t)
+	oldHash, _ := bcrypt.GenerateFromPassword([]byte("oldpass123"), bcrypt.MinCost)
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows([]string{"id", "nombre", "email", "password_hash", "moneda_default", "created_at", "email_verificado"}).
+		AddRow(5, "Agustin", "a@test.com", string(oldHash), "ARS", created, true)
+	f.mock.ExpectQuery(regexp.QuoteMeta("SELECT id, nombre, email, password_hash, moneda_default, created_at, email_verificado FROM usuarios WHERE id = ?")).
+		WithArgs(int64(5)).
+		WillReturnRows(rows)
+
+	body := strings.NewReader(`{"password_actual":"oldpass123","password_nuevo":"oldpass123","password2":"oldpass123"}`)
+	req := httptest.NewRequest("PUT", "/api/profile/password", body)
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(ctxWithUserID(5))
+	rec := httptest.NewRecorder()
+
+	f.authH.UpdatePassword(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "la nueva contraseña debe ser distinta a la actual") {
+		t.Errorf("expected mensaje de clave igual a la anterior, got: %s", rec.Body.String())
+	}
+}
+
 func TestAuthHandler_UpdatePassword_DecodeError(t *testing.T) {
 	f := newHandlerFixture(t)
 

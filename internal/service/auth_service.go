@@ -395,6 +395,9 @@ func (s *AuthService) UpdatePassword(ctx context.Context, userID int64, input Up
 	if err := validatePassword(input.PasswordNuevo); err != nil {
 		return err
 	}
+	if strings.TrimSpace(input.PasswordNuevo) == strings.TrimSpace(input.PasswordActual) {
+		return model.ErrPasswordIgualAnterior
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.PasswordNuevo), bcrypt.DefaultCost)
 	if err != nil {
 		return err
