@@ -59,6 +59,11 @@
             } else if (path.indexOf('/login') !== -1 && xhr.status === 401) {
                 var pw = document.getElementById('password');
                 if (pw) pw.value = '';
+            } else if (path.indexOf('/profile/password') !== -1) {
+                var pwActual = document.getElementById('password_actual');
+                var pw2 = document.getElementById('password2');
+                if (pwActual) pwActual.value = '';
+                if (pw2) pw2.value = '';
             }
             showAlertModal(text, 'error', action);
         });

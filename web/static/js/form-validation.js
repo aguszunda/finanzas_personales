@@ -76,6 +76,7 @@
             if (password && passwordActual && password.value === passwordActual.value) {
                 cancelRequest(evt);
                 password.value = '';
+                if (password2) password2.value = '';
                 showAlertModal('La nueva contraseña debe ser distinta a la actual', 'error');
                 password.focus();
                 return;
