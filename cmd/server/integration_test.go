@@ -1422,7 +1422,7 @@ func TestPages_Render(t *testing.T) {
 		path    string
 		markers []string
 	}{
-		{"/api/dashboard/page", []string{"Balance General", "Ingresos del Mes", "Egresos del Mes", "Tasa de Ahorro", "Últimos Movimientos", "Últimos 10 días"}},
+		{"/api/dashboard/page", []string{"Resumen General", "Ingresos del Mes", "Egresos del Mes", "Tasa de Ahorro", "Últimos Movimientos", "Últimos 10 días"}},
 		{"/api/transacciones/page", []string{"Transacciones", "Todos", `value="` + periodoActual + `"`}},
 		{"/api/costos-fijos/page", []string{"Costos Fijos", "Internet"}},
 		{"/api/balance/page", []string{"Balance", "RESULTADO NETO", "$ 50000.00", "$ 15000.00", "$ 35000.00", "Ahorro Acumulado", "PATRIMONIO NETO"}},
