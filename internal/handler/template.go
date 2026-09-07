@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log/slog"
+	"math"
 )
 
 type TemplateManager struct {
@@ -32,6 +33,7 @@ func NewTemplateManager(templatesFS fs.FS) *TemplateManager {
 	funcMap := template.FuncMap{
 		"mod": func(i, j int) int { return i % j },
 		"sub": func(a, b int) int { return a - b },
+		"abs": func(v float64) float64 { return math.Abs(v) },
 		"deref": func(v *float64) float64 {
 			if v == nil {
 				return 0

@@ -1422,7 +1422,7 @@ func TestPages_Render(t *testing.T) {
 		path    string
 		markers []string
 	}{
-		{"/api/dashboard/page", []string{"Resumen General", "Ingresos del Mes", "Egresos del Mes", "Tasa de Ahorro", "Últimos Movimientos", "Últimos 10 días"}},
+		{"/api/dashboard/page", []string{"Resumen General", "Resumen de Liquidez", "Últimos Movimientos", "Últimos 10 días"}},
 		{"/api/transacciones/page", []string{"Transacciones", "Todos", `value="` + periodoActual + `"`}},
 		{"/api/costos-fijos/page", []string{"Costos Fijos", "Internet"}},
 		{"/api/balance/page", []string{"Balance", "RESULTADO NETO", "$ 50000.00", "$ 15000.00", "$ 35000.00", "Ahorro Acumulado", "PATRIMONIO NETO"}},
@@ -1440,6 +1440,25 @@ func TestPages_Render(t *testing.T) {
 			if !strings.Contains(body, m) {
 				t.Errorf("%s: marker %q not found", tt.path, m)
 			}
+		}
+	}
+}
+
+func TestDashboard_LiquidezNegativa(t *testing.T) {
+	env := newTestEnv(t)
+	token, _ := registerJSON(t, env, "negativa@test.com")
+	dia := time.Now().Format("2006-01-02")
+	createTransaction(t, env, token, "ingreso", 10000, dia)
+	createTransaction(t, env, token, "egreso", 30000, dia)
+
+	rec := doReq(t, env.router, http.MethodGet, "/api/dashboard/page", token, "", "", false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, m := range []string{"Resumen de Liquidez", "var(--danger)", "$ 20000.00", "Tus gastos superaron tus ingresos este mes"} {
+		if !strings.Contains(body, m) {
+			t.Errorf("marker %q not found in dashboard", m)
 		}
 	}
 }

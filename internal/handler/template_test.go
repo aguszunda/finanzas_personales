@@ -14,7 +14,7 @@ func TestTemplateManager_FuncMap(t *testing.T) {
 
 	fs := fstest.MapFS{
 		"layout.html":  {Data: []byte(`<html>{{template "content" .}}</html>`)},
-		"funcmap.html": {Data: []byte(`{{define "content"}}<div>{{mod 5 2}} {{sub 7 3}} {{deref nil}}</div>{{end}}`)},
+		"funcmap.html": {Data: []byte(`{{define "content"}}<div>{{mod 5 2}} {{sub 7 3}} {{deref nil}} {{abs -4.5}}</div>{{end}}`)},
 	}
 	tmpl = newTestTemplateManager(fs)
 
@@ -25,8 +25,8 @@ func TestTemplateManager_FuncMap(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "1") || !strings.Contains(body, "4") || !strings.Contains(body, "0") {
-		t.Errorf("expected '1 4 0' in body, got: %s", body)
+	if !strings.Contains(body, "1") || !strings.Contains(body, "4") || !strings.Contains(body, "0") || !strings.Contains(body, "4.5") {
+		t.Errorf("expected '1 4 0 4.5' in body, got: %s", body)
 	}
 }
 
