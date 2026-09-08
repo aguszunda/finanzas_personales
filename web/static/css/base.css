@@ -16,41 +16,82 @@ body {
 
 .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
 
-nav {
-    background: var(--card);
-    border-bottom: 1px solid var(--border);
-    padding: 1rem 0;
-    margin-bottom: 2rem;
-}
-
-nav .container { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
-
-nav .brand {
+.brand {
     font-weight: 700;
     font-size: 1.25rem;
     color: var(--primary);
     text-decoration: none;
 }
 
-nav .brand img {
+.brand img {
     height: 28px;
     width: auto;
     vertical-align: middle;
     margin-right: 0.5rem;
 }
 
-nav a {
+.sidebar {
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    padding: 1rem;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 1.5rem;
+}
+
+.sidebar-nav a {
     color: var(--text);
     text-decoration: none;
-    padding: 0.5rem 0.75rem;
+    padding: 0.6rem 0.75rem;
     border-radius: 6px;
     transition: background 0.2s;
 }
 
-nav a:hover { background: var(--bg); }
+.sidebar-nav a:hover { background: var(--bg); }
+
+.topbar {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0.5rem 1rem;
+}
+
+@media (min-width: 768px) {
+    body.nav-active {
+        padding-left: 240px;
+        padding-top: 60px;
+    }
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 240px;
+        height: 100vh;
+        overflow-y: auto;
+        z-index: 100;
+    }
+    .topbar {
+        position: fixed;
+        top: 0;
+        left: 240px;
+        right: 0;
+        height: 60px;
+        z-index: 100;
+    }
+}
+
+@media (max-width: 767px) {
+    .sidebar-nav { flex-direction: row; flex-wrap: wrap; margin-top: 0.75rem; }
+    .topbar { margin-bottom: 1rem; }
+}
 
 .nav-user {
-    margin-left: auto;
     position: relative;
 }
 

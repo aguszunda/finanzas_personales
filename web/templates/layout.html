@@ -12,27 +12,29 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="/static/js/form-validation.js" defer></script>
 </head>
-<body hx-boost="true">
+<body hx-boost="true"{{if not .hideNav}} class="nav-active"{{end}}>
     {{if not .hideNav}}
-    <nav id="main-nav">
-        <div class="container">
-            <a href="/api/dashboard/page" class="brand"><img src="/images/logo_optipay.png" alt="Optipay"> Optipay</a>
+    <aside class="sidebar">
+        <a href="/api/dashboard/page" class="brand"><img src="/images/logo_optipay.png" alt="Optipay"> Optipay</a>
+        <nav class="sidebar-nav">
             <a href="/api/dashboard/page">Inicio</a>
             <a href="/api/transacciones/page">Transacciones</a>
             <a href="/api/balance/page">Balance</a>
             <a href="/api/meses/page">Meses</a>
-            <div class="nav-user">
-                <button class="nav-user-btn" onclick="this.parentElement.classList.toggle('open')">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    <span>{{.userName}}</span>
-                </button>
-                <div class="nav-user-dropdown">
-                    <a href="/api/profile/page">Actualizar perfil</a>
-                    <a href="/api/auth/logout" hx-boost="false">Cerrar sesión</a>
-                </div>
+        </nav>
+    </aside>
+    <header class="topbar" style="background: none;border:none;">
+        <div class="nav-user">
+            <button class="nav-user-btn" onclick="this.parentElement.classList.toggle('open')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>{{.userName}}</span>
+            </button>
+            <div class="nav-user-dropdown">
+                <a href="/api/profile/page">Actualizar perfil</a>
+                <a href="/api/auth/logout" hx-boost="false">Cerrar sesión</a>
             </div>
         </div>
-    </nav>
+    </header>
     {{end}}
     <main class="container" id="main-content">
         {{block "content" .}}{{end}}
