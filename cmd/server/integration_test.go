@@ -898,9 +898,13 @@ func TestDashboard_Totals(t *testing.T) {
 	if mesActual["superavit"].(float64) != 75000 {
 		t.Errorf("expected superavit 75000, got %v", mesActual["superavit"])
 	}
-	gastos, _ := dash["gastos_por_categoria"].([]interface{})
-	if len(gastos) != 1 {
-		t.Errorf("expected 1 gasto por categoria, got %d", len(gastos))
+	ingresos, _ := dash["ingresos_por_categoria"].([]interface{})
+	if len(ingresos) != 1 {
+		t.Errorf("expected 1 ingreso por categoria, got %d", len(ingresos))
+	}
+	egresos, _ := dash["egresos_por_categoria"].([]interface{})
+	if len(egresos) != 1 {
+		t.Errorf("expected 1 egreso por categoria, got %d", len(egresos))
 	}
 }
 

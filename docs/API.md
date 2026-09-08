@@ -214,7 +214,10 @@ curl -s "http://localhost:8080/api/dashboard?periodo=2026-07" -H "Authorization:
     "created_at": "2026-07-01T00:00:00Z"
   },
   "mes_anterior": { "...": "..." },
-  "gastos_por_categoria": [
+  "ingresos_por_categoria": [
+    {"categoria_id": 1, "categoria": "Sueldo", "monto": 150000, "porcentaje": 100, "icono": "💰"}
+  ],
+  "egresos_por_categoria": [
     {"categoria_id": 5, "categoria": "Alquiler", "monto": 45000, "porcentaje": 100, "icono": "🏠"}
   ],
   "ultimos_movimientos": [

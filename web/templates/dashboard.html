@@ -15,33 +15,28 @@
     {{end}}
 </div>
 
-<div class="card">
-    <h3 style="margin-bottom:0.5rem">Gastos por Categoría</h3>
-    {{if .d.GastosPorCategoria}}
-    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start">
-        <div style="flex:1;min-width:280px;max-width:400px">
-            <canvas id="chart-categorias" style="max-height:280px"></canvas>
-        </div>
-        <div style="flex:1;min-width:280px">
-            <table>
-                <thead>
-                    <tr><th>Categoría</th><th class="text-right">Monto</th><th class="text-right">%</th></tr>
-                </thead>
-                <tbody>
-                    {{range .d.GastosPorCategoria}}
-                    <tr>
-                        <td>{{.Icono}} {{.Categoria}}</td>
-                        <td class="text-right">$ {{printf "%.2f" .Monto}}</td>
-                        <td class="text-right">{{printf "%.1f" .Porcentaje}}%</td>
-                    </tr>
-                    {{end}}
-                </tbody>
-            </table>
-        </div>
+<div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start">
+<div class="card" style="flex:1;min-width:300px">
+    <h3 style="margin-bottom:0.5rem">Composición de ingresos total</h3>
+    {{if .d.IngresosPorCategoria}}
+    <div style="max-width:400px;margin:0 auto">
+        <canvas id="chart-ingresos" style="max-height:280px"></canvas>
+    </div>
+    {{else}}
+    <p class="empty-state">Sin ingresos este mes</p>
+    {{end}}
+</div>
+
+<div class="card" style="flex:1;min-width:300px">
+    <h3 style="margin-bottom:0.5rem">Composición de los Egresos total</h3>
+    {{if .d.EgresosPorCategoria}}
+    <div style="max-width:400px;margin:0 auto">
+        <canvas id="chart-egresos" style="max-height:280px"></canvas>
     </div>
     {{else}}
     <p class="empty-state">Sin egresos este mes</p>
     {{end}}
+</div>
 </div>
 
 <div class="card">
@@ -92,16 +87,12 @@
 
 <script>
 (function(){
-    var labels = [];
-    var values = [];
-    {{range .d.GastosPorCategoria}}
-    labels.push({{printf "%q" .Categoria}});
-    values.push({{.Monto}});
-    {{end}}
-    if (labels.length) {
-        var colors = ['#0d6efd','#198754','#dc3545','#ffc107','#0dcaf0','#6f42c1','#fd7e14','#20c997','#d63384','#6610f2'];
-        new Chart(document.getElementById('chart-categorias'), {
-            type: 'doughnut',
+    var colorsIngreso = ['#0d6efd','#198754','#0dcaf0','#6f42c1','#20c997','#6610f2','#0b5aa8','#0e6b4a','#0a8fb8'];
+    var colorsEgreso = ['#dc3545','#ffc107','#fd7e14','#d63384','#ff8fa3','#e63946','#b23a48','#f4a261','#8e44ad'];
+    function crearTorta(canvasId, labels, values, colors) {
+        if (!labels.length) return;
+        new Chart(document.getElementById(canvasId), {
+            type: 'pie',
             data: {
                 labels: labels,
                 datasets: [{ data: values, backgroundColor: colors }]
@@ -109,6 +100,18 @@
             options: { plugins: { legend: { position: 'bottom' } }, maintainAspectRatio: false }
         });
     }
+    var labelsIngreso = [], valuesIngreso = [];
+    {{range .d.IngresosPorCategoria}}
+    labelsIngreso.push({{printf "%q" .Categoria}});
+    valuesIngreso.push({{.Monto}});
+    {{end}}
+    crearTorta('chart-ingresos', labelsIngreso, valuesIngreso, colorsIngreso);
+    var labelsEgreso = [], valuesEgreso = [];
+    {{range .d.EgresosPorCategoria}}
+    labelsEgreso.push({{printf "%q" .Categoria}});
+    valuesEgreso.push({{.Monto}});
+    {{end}}
+    crearTorta('chart-egresos', labelsEgreso, valuesEgreso, colorsEgreso);
 })();
 </script>
 {{end}}

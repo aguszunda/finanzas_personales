@@ -620,11 +620,18 @@ func TestGetDashboard_Success(t *testing.T) {
 	if data.MesAnterior != nil {
 		t.Errorf("expected nil mesAnterior, got %+v", data.MesAnterior)
 	}
-	if len(data.GastosPorCategoria) != 1 {
-		t.Errorf("expected 1 gasto por categoria, got %d", len(data.GastosPorCategoria))
+	if len(data.IngresosPorCategoria) != 1 {
+		t.Errorf("expected 1 ingreso por categoria, got %d", len(data.IngresosPorCategoria))
 	} else {
-		if data.GastosPorCategoria[0].CategoriaID != 5 || data.GastosPorCategoria[0].Monto != 30000 {
-			t.Errorf("unexpected gasto: %+v", data.GastosPorCategoria[0])
+		if data.IngresosPorCategoria[0].CategoriaID != 1 || data.IngresosPorCategoria[0].Monto != 100000 {
+			t.Errorf("unexpected ingreso: %+v", data.IngresosPorCategoria[0])
+		}
+	}
+	if len(data.EgresosPorCategoria) != 1 {
+		t.Errorf("expected 1 egreso por categoria, got %d", len(data.EgresosPorCategoria))
+	} else {
+		if data.EgresosPorCategoria[0].CategoriaID != 5 || data.EgresosPorCategoria[0].Monto != 30000 {
+			t.Errorf("unexpected egreso: %+v", data.EgresosPorCategoria[0])
 		}
 	}
 }

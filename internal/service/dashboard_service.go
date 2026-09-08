@@ -20,13 +20,14 @@ func NewDashboardService(mr *repository.MesRepo, tr *repository.TransaccionRepo,
 }
 
 type DashboardData struct {
-	MesActual          *model.Mes         `json:"mes_actual"`
-	MesAnterior        *model.Mes         `json:"mes_anterior,omitempty"`
-	GastosPorCategoria []CategoriaGasto   `json:"gastos_por_categoria"`
-	UltimosMovimientos []model.Movimiento `json:"ultimos_movimientos"`
+	MesActual            *model.Mes             `json:"mes_actual"`
+	MesAnterior          *model.Mes             `json:"mes_anterior,omitempty"`
+	IngresosPorCategoria []CategoriaComposicion `json:"ingresos_por_categoria"`
+	EgresosPorCategoria  []CategoriaComposicion `json:"egresos_por_categoria"`
+	UltimosMovimientos   []model.Movimiento     `json:"ultimos_movimientos"`
 }
 
-type CategoriaGasto struct {
+type CategoriaComposicion struct {
 	CategoriaID int64   `json:"categoria_id"`
 	Categoria   string  `json:"categoria"`
 	Monto       float64 `json:"monto"`
@@ -87,29 +88,8 @@ func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64, pe
 	for _, c := range categorias {
 		catMap[c.ID] = c
 	}
-	egresos := make(map[int64]float64)
-	for _, t := range transacciones {
-		if t.Tipo == "egreso" {
-			egresos[t.CategoriaID] += t.Monto
-		}
-	}
-	var gastosPorCat []CategoriaGasto
-	for catID, monto := range egresos {
-		pct := 0.0
-		if totalEgresos > 0 {
-			pct = (monto / totalEgresos) * 100
-		}
-		cat := CategoriaGasto{
-			CategoriaID: catID,
-			Monto:       monto,
-			Porcentaje:  pct,
-		}
-		if c, ok := catMap[catID]; ok {
-			cat.Categoria = c.Nombre
-			cat.Icono = c.Icono
-		}
-		gastosPorCat = append(gastosPorCat, cat)
-	}
+	ingresosPorCat := s.agruparPorCategoria(transacciones, catMap, "ingreso", totalIngresos)
+	egresosPorCat := s.agruparPorCategoria(transacciones, catMap, "egreso", totalEgresos)
 	// Feed de "Últimos Movimientos": solo transacciones.
 	// Por defecto se muestran los últimos 10 días; si se filtra por mes, la
 	// ventana reemplaza los 10 días por el período completo.
@@ -128,11 +108,40 @@ func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64, pe
 	}
 	movimientos := s.unirMovimientos(transaccionesUltimos)
 	return &DashboardData{
-		MesActual:          mesActual,
-		MesAnterior:        mesAnterior,
-		GastosPorCategoria: gastosPorCat,
-		UltimosMovimientos: movimientos,
+		MesActual:            mesActual,
+		MesAnterior:          mesAnterior,
+		IngresosPorCategoria: ingresosPorCat,
+		EgresosPorCategoria:  egresosPorCat,
+		UltimosMovimientos:   movimientos,
 	}, nil
+}
+
+// agruparPorCategoria acumula los montos de las transacciones de un tipo por
+// categoría y devuelve la composición ordenada por monto desc.
+func (s *DashboardService) agruparPorCategoria(transacciones []model.Transaccion, catMap map[int64]model.Categoria, tipo string, total float64) []CategoriaComposicion {
+	acum := make(map[int64]float64)
+	for _, t := range transacciones {
+		if t.Tipo == tipo {
+			acum[t.CategoriaID] += t.Monto
+		}
+	}
+	var res []CategoriaComposicion
+	for catID, monto := range acum {
+		pct := 0.0
+		if total > 0 {
+			pct = (monto / total) * 100
+		}
+		c := CategoriaComposicion{CategoriaID: catID, Monto: monto, Porcentaje: pct}
+		if cat, ok := catMap[catID]; ok {
+			c.Categoria = cat.Nombre
+			c.Icono = cat.Icono
+		}
+		res = append(res, c)
+	}
+	sort.SliceStable(res, func(i, j int) bool {
+		return res[i].Monto > res[j].Monto
+	})
+	return res
 }
 
 func primerMesAbierto(meses []model.Mes, periodo string) string {
