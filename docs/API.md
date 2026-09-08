@@ -109,10 +109,7 @@ curl -s -X POST http://localhost:8080/api/transacciones \
     "fecha": "2026-07-12",
     "categoria_id": 5,
     "descripcion": "Alquiler julio",
-    "medio_pago": "debito",
-    "es_fijo": true,
-    "cuotas_total": null,
-    "cuota_actual": null
+    "medio_pago": "debito"
   }'
 ```
 
@@ -129,34 +126,11 @@ Mismo body que POST (`fecha` opcional). `404` si no existe o no pertenece al usu
 
 ---
 
-## Costos Fijos (protegido)
+## Costos Fijos y Deudas
 
-### `GET /api/costos-fijos`
-### `GET /api/costos-fijos/{id}`
-
-### `POST /api/costos-fijos`
-`tipo_periodo` opcional (default `"mensual"`), `dia_vencimiento` entre 1 y 31. Materializa el costo fijo como transacción `pendiente` del mes en curso (se omite si está cerrado).
-
-```bash
-curl -s -X POST http://localhost:8080/api/costos-fijos \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{
-    "categoria_id": 6,
-    "descripcion": "Internet",
-    "monto_estimado": 12000,
-    "dia_vencimiento": 5,
-    "tipo_periodo": "mensual"
-  }'
-```
-
-### `PUT /api/costos-fijos/{id}`
-Mismo body que POST.
-
-### `PATCH /api/costos-fijos/{id}/toggle`
-Activa/desactiva (flipea `activo`). Al reactivarlo vuelve a materializarse en el mes en curso.
-
-### `DELETE /api/costos-fijos/{id}`
-`204 No Content` en éxito.
+> Estas features fueron eliminadas del producto (migración 008). No existen
+> endpoints `/api/costos-fijos*` ni `/api/deudas*`. Los gastos recurrentes y
+> las cuotas se registran como transacciones de egreso normales.
 
 ---
 
@@ -169,7 +143,7 @@ El objeto `Mes` incluye indicadores calculados:
   "id": 3, "usuario_id": 1, "periodo": "2026-07", "estado": "abierto",
   "ingresos_total": 150000, "egresos_total": 45000,
   "superavit": 105000, "tasa_ahorro": 70,
-  "ahorro_acumulado": 105000, "pasivos_total": 0, "patrimonio": 105000,
+  "ahorro_acumulado": 105000,
   "created_at": "2026-07-01T00:00:00Z"
 }
 ```
@@ -183,7 +157,7 @@ Devuelve (o crea) el mes del período actual.
 ### `GET /api/meses/{id}`
 
 ### `POST /api/meses/{id}/cerrar`
-Cierra el mes (inmutable), recalcula sus indicadores + acumulados y precarga los costos fijos activos como transacciones `pendientes` del próximo mes. `409` si ya está cerrado. Respuesta HTMX/303: redirige a `/api/balance/{id}/page`.
+Cierra el mes (inmutable), recalcula sus indicadores + acumulados (`ahorro_acumulado` = ahorro del mes anterior + superávit) y crea/abre el mes siguiente. `409` si ya está cerrado. Respuesta HTMX/303: redirige a `/api/balance/{id}/page`.
 
 ```bash
 curl -s -X POST http://localhost:8080/api/meses/1/cerrar -H "Authorization: Bearer $TOKEN"
@@ -191,41 +165,6 @@ curl -s -X POST http://localhost:8080/api/meses/1/cerrar -H "Authorization: Bear
 
 ### `POST /api/meses/{id}/recalcular`
 Recalcula ingresos/egresos/superávit/tasa + acumulados sin cerrar. `409` si el mes está cerrado.
-
----
-
-## Deudas (protegido)
-
-### `GET /api/deudas`
-Lista de deudas del usuario.
-
-### `POST /api/deudas`
-`entidad` (obligatoria) y `monto_total` (> 0) requeridos; `tipo` opcional (default `"otro"`), debe ser una de: `tarjeta_credito`, `prestamo`, `hipoteca`, `personal`, `otro`. Opcionales: `categoria_id` (categoría de egreso que se usará por defecto al pagar) y `medio_pago` (`efectivo`, `debito`, `credito`, `transferencia`; se aplica al egreso generado al pagar).
-
-```bash
-curl -s -X POST http://localhost:8080/api/deudas \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{
-    "tipo": "tarjeta_credito",
-    "entidad": "Visa",
-    "descripcion": "Cuota 3 meses",
-    "monto_total": 150000,
-    "categoria_id": 6,
-    "medio_pago": "debito",
-    "proximo_vencimiento": "2026-08-15"
-  }'
-```
-
-**Respuesta 201:**
-```json
-{
-  "id": 1, "usuario_id": 1, "tipo": "tarjeta_credito",
-  "entidad": "Visa", "descripcion": "Cuota 3 meses",
-  "monto_total": 150000, "categoria_id": 6, "medio_pago": "debito",
-  "proximo_vencimiento": "2026-08-15",
-  "estado": "pendiente", "created_at": "2026-07-30T12:00:00Z"
-}
-```
 
 `estado` es `"pendiente"` (nueva) o `"pagada"` (ver `POST /api/deudas/{id}/pagar`).
 
@@ -271,21 +210,24 @@ curl -s "http://localhost:8080/api/dashboard?periodo=2026-07" -H "Authorization:
     "id": 3, "usuario_id": 1, "periodo": "2026-07", "estado": "abierto",
     "ingresos_total": 150000, "egresos_total": 45000,
     "superavit": 105000, "tasa_ahorro": 70,
-    "ahorro_acumulado": 105000, "pasivos_total": 0, "patrimonio": 105000,
+    "ahorro_acumulado": 105000,
     "created_at": "2026-07-01T00:00:00Z"
   },
   "mes_anterior": { "...": "..." },
-  "gastos_por_categoria": [
+  "ingresos_por_categoria": [
+    {"categoria_id": 1, "categoria": "Sueldo", "monto": 150000, "porcentaje": 100, "icono": "💰"}
+  ],
+  "egresos_por_categoria": [
     {"categoria_id": 5, "categoria": "Alquiler", "monto": 45000, "porcentaje": 100, "icono": "🏠"}
   ],
   "ultimos_movimientos": [
     {"id": 1, "origen": "transaccion", "tipo": "ingreso", "monto": 150000, "fecha": "2026-07-02", "categoria_nombre": "Sueldo", "descripcion": "Sueldo julio"},
-    {"id": 2, "origen": "deuda", "tipo": "deuda", "monto": 60000, "fecha": "2026-07-05", "categoria_nombre": "Visa", "descripcion": "Celular"}
+    {"id": 2, "origen": "transaccion", "tipo": "egreso", "monto": 60000, "fecha": "2026-07-05", "categoria_nombre": "Compras", "descripcion": "Celular"}
   ]
 }
 ```
 
-`mes_anterior` viene `omitempty` (ausente si no hay mes del período anterior). `ultimos_movimientos` es un feed único y ordenado por fecha: une **transacciones** (`origen: "transaccion"`) con **deudas** (`origen: "deuda"`, cada una como movimiento con su `monto_total` y fecha de alta), tanto las del mes actual como las del período filtrado. Las deudas pagadas **no** aparecen en el feed (su egreso las reemplaza). Las deudas **no** suman a los `egresos_total`.
+`mes_anterior` viene `omitempty` (ausente si no hay mes del período anterior). `ultimos_movimientos` es un feed único y ordenado por fecha: solo **transacciones** (`origen: "transaccion"`), tanto las del mes actual como las del período filtrado.
 
 ---
 
@@ -296,14 +238,10 @@ curl -s "http://localhost:8080/api/dashboard?periodo=2026-07" -H "Authorization:
 | `/login` · `/register` | Formularios de autenticación |
 | `/api/dashboard/page` | Balance General (con `?periodo=YYYY-MM`, default últimos 10 días) |
 | `/api/transacciones/page` | CRUD transacciones (`?periodo=YYYY-MM`, default `all`) |
-| `/api/costos-fijos/page` | CRUD costos fijos |
 | `/api/meses/page` | Lista de meses |
-| `/api/deudas/page` | CRUD deudas + botón "Pagar" |
 | `/api/balance/page` | Balance del mes actual (imprimible) |
 | `/api/balance/{id}/page` | Balance de mes específico |
 | `/api/transacciones/form[?edit_id={id}]` | Fragmento HTML del formulario (modo crear o editar) |
-| `/api/deudas/form[?edit_id={id}]` | Fragmento HTML del formulario (modo crear o editar) |
-| `/api/deudas/{id}/pagar/form` | Fragmento HTML de confirmación de pago (elige categoría del egreso) |
 
 Todas las páginas protegidas requieren auth. Los endpoints `*/form` devuelven un fragmento HTML (sin layout) usado por el modal: sin `edit_id` renderizan el form vacío con `hx-post`; con `edit_id` precargan el registro y responden con `hx-put`. El verbo y los valores se generan en el servidor para que HTMX los procese al hacer el swap. El balance tiene CSS `@media print`: `Ctrl+P` → PDF limpio.
 
@@ -338,6 +276,5 @@ El body de error es `{"error": "<mensaje>"}`.
 ## Notas de implementación (revisión de endpoints)
 
 - Todos los recursos consultan y mutan **solo** datos del usuario autenticado (`usuario_id`); cualquier `GET/{id}`/`PUT`/`DELETE` de un recurso ajeno responde `404`.
-- **CORS**: `AllowedMethods` es `GET, POST, PUT, DELETE, OPTIONS`. Ojo: el endpoint `PATCH /api/costos-fijos/{id}/toggle` **no** está en la lista, por lo que un cliente cross-origin no podrá usarlo (la preflight fallaría). Same-origin (HTMX) no se ve afectado.
 - **Cookie de sesión**: la cookie `token` se marca `Secure`, por lo que en `localhost` servido por HTTP puro los navegadores no la persisten; los clientes de API deben usar el header `Authorization: Bearer` (curl funciona igual).
-- La inmutabilidad de meses cerrados está preservada en todos los write paths de transacciones/costos fijos/recalcular (`ErrMesCerrado` → `409`).
+- La inmutabilidad de meses cerrados está preservada en todos los write paths de transacciones/recalcular (`ErrMesCerrado` → `409`).

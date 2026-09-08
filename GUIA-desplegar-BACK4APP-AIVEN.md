@@ -263,6 +263,29 @@ Aiven free hace **backups diarios** automáticos (7 días de retención).
 `git push` a la rama conectada → el **auto-deploy** de Back4app rebuild + redeploy
 automáticamente, sin downtime.
 
+### La URL es permanente (no expira ni cambia)
+La URL pública `https://<app>-<hash>.b4a.run` es **estable y de por vida en el free
+tier**: Back4app declaró su plan free como "no time limits" y asigna una URL de
+producción fija por app. No hay que renovar, "mantener viva" ni reactivar nada para
+conservarla; cambia solo si se borra la app o se recrea.
+
+> Contraste: la URL **sí es temporal** en el otro mecanismo del repo, el túnel de
+> cloudflared (`*.trycloudflare.com`) usado en las guías previas a producción para
+> exponer localhost: ese subdominio cambia en cada reinicio del túnel. En producción
+> con Back4app no aplica.
+
+### Reactivar la app (misma URL, gratis)
+Si el contenedor estuvo inactivo (free tier; primer request puede demorar unos
+segundos), no hay que cambiar nada: cualquier request a la URL la despierta. Para
+reactivar/redesplegar sin que cambie el host:
+
+1. `git push` a la rama conectada → auto-deploy (rebuild + redeploy, misma URL).
+2. Dashboard → **Actions → deploy the latest commit** (redeploy manual, misma URL).
+3. Solo abrir la URL → si estaba dormido, el primer request tarda y responde.
+
+Para uso personal se puede dejar caliente gratis con un monitor de uptime
+(UptimeRobot free, intervalo de 5 min) apuntando a `/health`; no cambia la URL.
+
 ### Idle / cold start
 Back4app free no anuncia scale-to-zero explícito para Containers, pero al ser free
 puede haber inactividad del contenedor; el primer request tras una pausa puede tardar

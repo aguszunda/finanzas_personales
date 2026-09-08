@@ -29,11 +29,7 @@ func usuarioResetCols() []string {
 }
 
 func transaccionCols() []string {
-	return []string{"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "categoria", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"}
-}
-
-func costofijoCols() []string {
-	return []string{"id", "usuario_id", "categoria_id", "nombre", "descripcion", "monto_estimado", "dia_vencimiento", "activo", "tipo_periodo", "created_at"}
+	return []string{"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "categoria", "descripcion", "medio_pago", "estado", "mes_id", "created_at", "updated_at"}
 }
 
 func ptrInt64(v int64) *int64 { return &v }
@@ -223,15 +219,15 @@ func TestMesRepo_FindByUsuarioID_Extra(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewMesRepo(db)
 
-	q := regexp.QuoteMeta(`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+	q := regexp.QuoteMeta(`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, created_at
 		 FROM meses WHERE usuario_id = ? ORDER BY periodo DESC`)
 	created := time.Now()
 
 	// Two rows.
 	mock.ExpectQuery(q).WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows(mesCols()).
-			AddRow(2, 1, "2026-09", "abierto", 200000.0, 150000.0, 50000.0, 0.25, 50000.0, 0.0, 50000.0, created).
-			AddRow(1, 1, "2026-08", "cerrado", 180000.0, 140000.0, 40000.0, 0.222, 40000.0, 0.0, 40000.0, created))
+			AddRow(2, 1, "2026-09", "abierto", 200000.0, 150000.0, 50000.0, 0.25, 50000.0, created).
+			AddRow(1, 1, "2026-08", "cerrado", 180000.0, 140000.0, 40000.0, 0.222, 40000.0, created))
 	ms, err := r.FindByUsuarioID(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("FindByUsuarioID: %v", err)
@@ -253,14 +249,14 @@ func TestMesRepo_FindByID_Extra(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewMesRepo(db)
 
-	q := regexp.QuoteMeta(`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+	q := regexp.QuoteMeta(`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, created_at
 		 FROM meses WHERE id = ? AND usuario_id = ?`)
 	created := time.Now()
 
 	// Found.
 	mock.ExpectQuery(q).WithArgs(int64(1), int64(1)).
 		WillReturnRows(sqlmock.NewRows(mesCols()).
-			AddRow(1, 1, "2026-08", "cerrado", 180000.0, 140000.0, 40000.0, 0.222, 40000.0, 0.0, 40000.0, created))
+			AddRow(1, 1, "2026-08", "cerrado", 180000.0, 140000.0, 40000.0, 0.222, 40000.0, created))
 	m, err := r.FindByID(context.Background(), 1, 1)
 	if err != nil {
 		t.Fatalf("FindByID: %v", err)
@@ -280,14 +276,14 @@ func TestMesRepo_FindByPeriodo_Extra(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewMesRepo(db)
 
-	q := regexp.QuoteMeta(`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+	q := regexp.QuoteMeta(`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, created_at
 		 FROM meses WHERE usuario_id = ? AND periodo = ?`)
 	created := time.Now()
 
 	// Found.
 	mock.ExpectQuery(q).WithArgs(int64(1), "2026-08").
 		WillReturnRows(sqlmock.NewRows(mesCols()).
-			AddRow(1, 1, "2026-08", "cerrado", 180000.0, 140000.0, 40000.0, 0.222, 40000.0, 0.0, 40000.0, created))
+			AddRow(1, 1, "2026-08", "cerrado", 180000.0, 140000.0, 40000.0, 0.222, 40000.0, created))
 	m, err := r.FindByPeriodo(context.Background(), 1, "2026-08")
 	if err != nil {
 		t.Fatalf("FindByPeriodo: %v", err)
@@ -307,7 +303,7 @@ func TestMesRepo_FindOrCreate_Extra(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewMesRepo(db)
 
-	pq := regexp.QuoteMeta(`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+	pq := regexp.QuoteMeta(`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, created_at
 		 FROM meses WHERE usuario_id = ? AND periodo = ?`)
 	iq := regexp.QuoteMeta(`INSERT INTO meses (usuario_id, periodo, estado)
 		 VALUES (?, ?, 'abierto')
@@ -317,7 +313,7 @@ func TestMesRepo_FindOrCreate_Extra(t *testing.T) {
 	// Path 1: already exists → returns existing.
 	mock.ExpectQuery(pq).WithArgs(int64(1), "2026-08").
 		WillReturnRows(sqlmock.NewRows(mesCols()).
-			AddRow(1, 1, "2026-08", "abierto", 0.0, 0.0, 0.0, nil, 0.0, 0.0, 0.0, created))
+			AddRow(1, 1, "2026-08", "abierto", 0.0, 0.0, 0.0, nil, 0.0, created))
 	m, err := r.FindOrCreate(context.Background(), 1, "2026-08")
 	if err != nil {
 		t.Fatalf("FindOrCreate (exists): %v", err)
@@ -332,7 +328,7 @@ func TestMesRepo_FindOrCreate_Extra(t *testing.T) {
 	mock.ExpectExec(iq).WithArgs(int64(1), "2026-09").WillReturnResult(sqlmock.NewResult(3, 1))
 	mock.ExpectQuery(pq).WithArgs(int64(1), "2026-09").
 		WillReturnRows(sqlmock.NewRows(mesCols()).
-			AddRow(3, 1, "2026-09", "abierto", 0.0, 0.0, 0.0, nil, 0.0, 0.0, 0.0, created))
+			AddRow(3, 1, "2026-09", "abierto", 0.0, 0.0, 0.0, nil, 0.0, created))
 	m, err = r.FindOrCreate(context.Background(), 1, "2026-09")
 	if err != nil {
 		t.Fatalf("FindOrCreate (new): %v", err)
@@ -353,15 +349,14 @@ func TestMesRepo_Update_Extra(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewMesRepo(db)
 
-	q := regexp.QuoteMeta(`UPDATE meses SET estado=?, ingresos_total=?, egresos_total=?, superavit=?, tasa_ahorro=?, ahorro_acumulado=?, pasivos_total=?, patrimonio=?
+	q := regexp.QuoteMeta(`UPDATE meses SET estado=?, ingresos_total=?, egresos_total=?, superavit=?, tasa_ahorro=?, ahorro_acumulado=?
 		 WHERE id=? AND usuario_id=?`)
 	m := &model.Mes{
 		ID: 1, UsuarioID: 1, Estado: "abierto", IngresosTotal: 200000,
 		EgresosTotal: 150000, Superavit: 50000, AhorroAcumulado: 50000,
-		PasivosTotal: 0, Patrimonio: 50000,
 	}
 	mock.ExpectExec(q).
-		WithArgs("abierto", 200000.0, 150000.0, 50000.0, nil, 50000.0, 0.0, 50000.0, int64(1), int64(1)).
+		WithArgs("abierto", 200000.0, 150000.0, 50000.0, nil, 50000.0, int64(1), int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := r.Update(context.Background(), m); err != nil {
 		t.Fatalf("Update: %v", err)
@@ -403,10 +398,10 @@ func TestTransaccionRepo_Create_Extra(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewTransaccionRepo(db)
 
-	q := regexp.QuoteMeta(`INSERT INTO transacciones (usuario_id, tipo, monto, fecha, categoria_id, descripcion, medio_pago, es_fijo, cuotas_total, cuota_actual, estado, mes_id)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+	q := regexp.QuoteMeta(`INSERT INTO transacciones (usuario_id, tipo, monto, fecha, categoria_id, descripcion, medio_pago, estado, mes_id)
+		 VALUES (?,?,?,?,?,?,?,?,?)`)
 	mock.ExpectExec(q).
-		WithArgs(int64(1), "ingreso", 100000.0, "2026-08-01", int64(1), "Sueldo", "transferencia", false, nil, nil, "confirmado", int64(9)).
+		WithArgs(int64(1), "ingreso", 100000.0, "2026-08-01", int64(1), "Sueldo", "transferencia", "confirmado", int64(9)).
 		WillReturnResult(sqlmock.NewResult(10, 1))
 	tr := &model.Transaccion{
 		UsuarioID: 1, Tipo: "ingreso", Monto: 100000, Fecha: "2026-08-01",
@@ -428,7 +423,7 @@ func TestTransaccionRepo_FindByID_Extra(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewTransaccionRepo(db)
 
-	q := regexp.QuoteMeta(`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
+	q := regexp.QuoteMeta(`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.estado, t.mes_id, t.created_at, t.updated_at
 		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id
 		 WHERE t.id = ? AND t.usuario_id = ?`)
 	created := time.Now()
@@ -437,7 +432,7 @@ func TestTransaccionRepo_FindByID_Extra(t *testing.T) {
 	// Found — fecha is formatted as "2006-01-02".
 	mock.ExpectQuery(q).WithArgs(int64(5), int64(1)).
 		WillReturnRows(sqlmock.NewRows(transaccionCols()).
-			AddRow(5, 1, "egreso", 45000.0, fecha, 6, "Servicios", "", "debito", false, nil, nil, "confirmado", int64(9), created, created))
+			AddRow(5, 1, "egreso", 45000.0, fecha, 6, "Servicios", "", "debito", "confirmado", int64(9), created, created))
 	tr, err := r.FindByID(context.Background(), 5, 1)
 	if err != nil {
 		t.Fatalf("FindByID: %v", err)
@@ -460,7 +455,7 @@ func TestTransaccionRepo_FindByUsuarioID_Extra(t *testing.T) {
 	db, mock := newRepoDB(t)
 	r := NewTransaccionRepo(db)
 
-	q := regexp.QuoteMeta(`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
+	q := regexp.QuoteMeta(`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.estado, t.mes_id, t.created_at, t.updated_at
 		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id
 		 WHERE t.usuario_id = ?
 		 ORDER BY t.fecha DESC, t.created_at DESC
@@ -471,7 +466,7 @@ func TestTransaccionRepo_FindByUsuarioID_Extra(t *testing.T) {
 	// Default limit = 50 when limit <= 0.
 	mock.ExpectQuery(q).WithArgs(int64(1), 50, 0).
 		WillReturnRows(sqlmock.NewRows(transaccionCols()).
-			AddRow(1, 1, "egreso", 45000.0, fecha, 6, "Servicios", "", "debito", false, nil, nil, "confirmado", int64(9), created, created))
+			AddRow(1, 1, "egreso", 45000.0, fecha, 6, "Servicios", "", "debito", "confirmado", int64(9), created, created))
 	ts, err := r.FindByUsuarioID(context.Background(), 1, 0, 0)
 	if err != nil {
 		t.Fatalf("FindByUsuarioID (default limit): %v", err)
@@ -483,7 +478,7 @@ func TestTransaccionRepo_FindByUsuarioID_Extra(t *testing.T) {
 	// Custom limit.
 	mock.ExpectQuery(q).WithArgs(int64(1), 10, 5).
 		WillReturnRows(sqlmock.NewRows(transaccionCols()).
-			AddRow(2, 1, "ingreso", 150000.0, fecha, 1, "Sueldo", "", "transferencia", false, nil, nil, "confirmado", int64(9), created, created))
+			AddRow(2, 1, "ingreso", 150000.0, fecha, 1, "Sueldo", "", "transferencia", "confirmado", int64(9), created, created))
 	ts, err = r.FindByUsuarioID(context.Background(), 1, 10, 5)
 	if err != nil {
 		t.Fatalf("FindByUsuarioID (custom): %v", err)
@@ -506,7 +501,7 @@ func TestTransaccionRepo_FindByPeriodo_Extra(t *testing.T) {
 	r := NewTransaccionRepo(db)
 
 	// findByRango uses fecha >= ? AND fecha <= ? with periodo+"-01" and periodo+"-31".
-	q := regexp.QuoteMeta(`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
+	q := regexp.QuoteMeta(`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.estado, t.mes_id, t.created_at, t.updated_at
 		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id
 		 WHERE t.usuario_id = ? AND t.fecha >= ? AND t.fecha <= ?
 		 ORDER BY t.fecha DESC, t.created_at DESC`)
@@ -515,129 +510,14 @@ func TestTransaccionRepo_FindByPeriodo_Extra(t *testing.T) {
 
 	mock.ExpectQuery(q).WithArgs(int64(1), "2026-08-01", "2026-08-31").
 		WillReturnRows(sqlmock.NewRows(transaccionCols()).
-			AddRow(1, 1, "egreso", 45000.0, fecha, 6, "Servicios", "", "debito", false, nil, nil, "confirmado", int64(9), created, created).
-			AddRow(2, 1, "ingreso", 150000.0, fecha, 1, "Sueldo", "", "transferencia", false, nil, nil, "confirmado", int64(9), created, created))
+			AddRow(1, 1, "egreso", 45000.0, fecha, 6, "Servicios", "", "debito", "confirmado", int64(9), created, created).
+			AddRow(2, 1, "ingreso", 150000.0, fecha, 1, "Sueldo", "", "transferencia", "confirmado", int64(9), created, created))
 	ts, err := r.FindByPeriodo(context.Background(), 1, "2026-08")
 	if err != nil {
 		t.Fatalf("FindByPeriodo: %v", err)
 	}
 	if len(ts) != 2 {
 		t.Errorf("expected 2 transacciones, got %d", len(ts))
-	}
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// CostoFijoRepo
-// ═══════════════════════════════════════════════════════════════════
-
-func TestCostoFijoRepo_Create_Extra(t *testing.T) {
-	db, mock := newRepoDB(t)
-	r := NewCostoFijoRepo(db)
-
-	q := regexp.QuoteMeta(`INSERT INTO costos_fijos (usuario_id, categoria_id, descripcion, monto_estimado, dia_vencimiento, activo, tipo_periodo)
-		 VALUES (?,?,?,?,?,?,?)`)
-	mock.ExpectExec(q).
-		WithArgs(int64(1), int64(6), "Internet", 5000.0, 10, true, "mensual").
-		WillReturnResult(sqlmock.NewResult(4, 1))
-	cf := &model.CostoFijo{
-		UsuarioID: 1, CategoriaID: 6, Descripcion: "Internet",
-		MontoEstimado: 5000, DiaVencimiento: 10, Activo: true, TipoPeriodo: "mensual",
-	}
-	if err := r.Create(context.Background(), cf); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if cf.ID != 4 {
-		t.Errorf("expected ID 4, got %d", cf.ID)
-	}
-}
-
-func TestCostoFijoRepo_FindByUsuarioID_Extra(t *testing.T) {
-	db, mock := newRepoDB(t)
-	r := NewCostoFijoRepo(db)
-
-	q := regexp.QuoteMeta(`SELECT cf.id, cf.usuario_id, cf.categoria_id, c.nombre, cf.descripcion, cf.monto_estimado, cf.dia_vencimiento, cf.activo, cf.tipo_periodo, cf.created_at
-		 FROM costos_fijos cf JOIN categorias c ON c.id = cf.categoria_id
-		 WHERE cf.usuario_id = ?
-		 ORDER BY cf.dia_vencimiento, cf.descripcion`)
-	created := time.Now()
-
-	// Two rows.
-	mock.ExpectQuery(q).WithArgs(int64(1)).
-		WillReturnRows(sqlmock.NewRows(costofijoCols()).
-			AddRow(1, 1, 6, "Servicios", "Internet", 5000.0, 10, true, "mensual", created).
-			AddRow(2, 1, 7, "Servicios", "Netflix", 3000.0, 15, true, "mensual", created))
-	cfs, err := r.FindByUsuarioID(context.Background(), 1)
-	if err != nil {
-		t.Fatalf("FindByUsuarioID: %v", err)
-	}
-	if len(cfs) != 2 || cfs[0].Descripcion != "Internet" {
-		t.Errorf("unexpected: %+v", cfs)
-	}
-
-	// Empty.
-	mock.ExpectQuery(q).WithArgs(int64(2)).
-		WillReturnRows(sqlmock.NewRows(costofijoCols()))
-	cfs, err = r.FindByUsuarioID(context.Background(), 2)
-	if err != nil || len(cfs) != 0 {
-		t.Fatalf("expected empty, got %v (%v)", cfs, err)
-	}
-}
-
-func TestCostoFijoRepo_FindActivos_Extra(t *testing.T) {
-	db, mock := newRepoDB(t)
-	r := NewCostoFijoRepo(db)
-
-	q := regexp.QuoteMeta(`SELECT cf.id, cf.usuario_id, cf.categoria_id, c.nombre, cf.descripcion, cf.monto_estimado, cf.dia_vencimiento, cf.activo, cf.tipo_periodo, cf.created_at
-		 FROM costos_fijos cf JOIN categorias c ON c.id = cf.categoria_id
-		 WHERE cf.usuario_id = ? AND cf.activo = TRUE
-		 ORDER BY cf.dia_vencimiento, cf.descripcion`)
-	created := time.Now()
-
-	mock.ExpectQuery(q).WithArgs(int64(1)).
-		WillReturnRows(sqlmock.NewRows(costofijoCols()).
-			AddRow(1, 1, 6, "Servicios", "Internet", 5000.0, 10, true, "mensual", created))
-	cfs, err := r.FindActivos(context.Background(), 1)
-	if err != nil {
-		t.Fatalf("FindActivos: %v", err)
-	}
-	if len(cfs) != 1 || cfs[0].Descripcion != "Internet" {
-		t.Errorf("unexpected: %+v", cfs)
-	}
-
-	// Empty.
-	mock.ExpectQuery(q).WithArgs(int64(2)).
-		WillReturnRows(sqlmock.NewRows(costofijoCols()))
-	cfs, err = r.FindActivos(context.Background(), 2)
-	if err != nil || len(cfs) != 0 {
-		t.Fatalf("expected empty, got %v (%v)", cfs, err)
-	}
-}
-
-func TestCostoFijoRepo_FindByID_Extra(t *testing.T) {
-	db, mock := newRepoDB(t)
-	r := NewCostoFijoRepo(db)
-
-	q := regexp.QuoteMeta(`SELECT cf.id, cf.usuario_id, cf.categoria_id, c.nombre, cf.descripcion, cf.monto_estimado, cf.dia_vencimiento, cf.activo, cf.tipo_periodo, cf.created_at
-		 FROM costos_fijos cf JOIN categorias c ON c.id = cf.categoria_id
-		 WHERE cf.id = ? AND cf.usuario_id = ?`)
-	created := time.Now()
-
-	// Found.
-	mock.ExpectQuery(q).WithArgs(int64(3), int64(1)).
-		WillReturnRows(sqlmock.NewRows(costofijoCols()).
-			AddRow(3, 1, 7, "Servicios", "Netflix", 3000.0, 15, true, "mensual", created))
-	cf, err := r.FindByID(context.Background(), 3, 1)
-	if err != nil {
-		t.Fatalf("FindByID: %v", err)
-	}
-	if cf.Descripcion != "Netflix" || cf.Categoria != "Servicios" {
-		t.Errorf("unexpected: %+v", cf)
-	}
-
-	// Not found.
-	mock.ExpectQuery(q).WithArgs(int64(999), int64(1)).WillReturnError(sql.ErrNoRows)
-	if _, err := r.FindByID(context.Background(), 999, 1); !errors.Is(err, model.ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 

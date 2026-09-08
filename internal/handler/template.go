@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log/slog"
+	"math"
 )
 
 type TemplateManager struct {
@@ -16,7 +17,6 @@ type TemplateManager struct {
 // modo edición a través de renderTemplateFragment cuando HTMX lo solicita.
 var pageFragments = map[string][]string{
 	"transacciones": {"transaccion_form"},
-	"deudas":        {"deuda_form"},
 	// register_exito es el pop-up post-alta (swap HTMX o render embebido);
 	// login_verificar es el pop-up al loguear una cuenta sin verificar;
 	// verificacion embebe el form de reenvío en sus estados de error;
@@ -32,6 +32,7 @@ func NewTemplateManager(templatesFS fs.FS) *TemplateManager {
 	funcMap := template.FuncMap{
 		"mod": func(i, j int) int { return i % j },
 		"sub": func(a, b int) int { return a - b },
+		"abs": func(v float64) float64 { return math.Abs(v) },
 		"deref": func(v *float64) float64 {
 			if v == nil {
 				return 0

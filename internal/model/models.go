@@ -27,26 +27,10 @@ type Transaccion struct {
 	Categoria   string    `json:"categoria_nombre,omitempty"`
 	Descripcion string    `json:"descripcion"`
 	MedioPago   string    `json:"medio_pago"`
-	EsFijo      bool      `json:"es_fijo"`
-	CuotasTotal *int      `json:"cuotas_total,omitempty"`
-	CuotaActual *int      `json:"cuota_actual,omitempty"`
 	Estado      string    `json:"estado"`
 	MesID       *int64    `json:"mes_id,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type CostoFijo struct {
-	ID             int64     `json:"id"`
-	UsuarioID      int64     `json:"usuario_id"`
-	CategoriaID    int64     `json:"categoria_id"`
-	Categoria      string    `json:"categoria_nombre,omitempty"`
-	Descripcion    string    `json:"descripcion"`
-	MontoEstimado  float64   `json:"monto_estimado"`
-	DiaVencimiento int       `json:"dia_vencimiento"`
-	Activo         bool      `json:"activo"`
-	TipoPeriodo    string    `json:"tipo_periodo"`
-	CreatedAt      time.Time `json:"created_at"`
 }
 
 type Categoria struct {
@@ -69,8 +53,6 @@ type Mes struct {
 	Superavit       float64   `json:"superavit"`
 	TasaAhorro      *float64  `json:"tasa_ahorro,omitempty"`
 	AhorroAcumulado float64   `json:"ahorro_acumulado"`
-	PasivosTotal    float64   `json:"pasivos_total"`
-	Patrimonio      float64   `json:"patrimonio"`
 	CreatedAt       time.Time `json:"created_at"`
 }
 
@@ -94,30 +76,17 @@ type Presupuesto struct {
 }
 
 // Movimiento es una entrada del feed de "Últimos Movimientos": unifica
-// transacciones y deudas en una sola lista para el balance general.
+// transacciones en una sola lista para el balance general.
 type Movimiento struct {
 	ID          int64     `json:"id"`
-	Origen      string    `json:"origen"` // "transaccion" | "deuda"
-	Tipo        string    `json:"tipo"`   // "ingreso" | "egreso" | "deuda"
+	Origen      string    `json:"origen"` // "transaccion"
+	Tipo        string    `json:"tipo"`   // "ingreso" | "egreso"
 	Monto       float64   `json:"monto"`
 	Fecha       string    `json:"fecha"`
 	Categoria   string    `json:"categoria_nombre,omitempty"`
 	Descripcion string    `json:"descripcion"`
+	MedioPago   string    `json:"medio_pago,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
-}
-
-type Deuda struct {
-	ID                 int64     `json:"id"`
-	UsuarioID          int64     `json:"usuario_id"`
-	Tipo               string    `json:"tipo"`
-	Entidad            string    `json:"entidad"`
-	Descripcion        string    `json:"descripcion"`
-	MontoTotal         float64   `json:"monto_total"`
-	CategoriaID        int64     `json:"categoria_id"` // categoría (egreso) default al pagar
-	MedioPago          string    `json:"medio_pago"`   // forma de pago aplicada al egreso
-	ProximoVencimiento string    `json:"proximo_vencimiento"`
-	Estado             string    `json:"estado"` // "pendiente" | "pagada"
-	CreatedAt          time.Time `json:"created_at"`
 }
 
 type Inversion struct {

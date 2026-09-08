@@ -16,41 +16,106 @@ body {
 
 .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
 
-nav {
-    background: var(--card);
-    border-bottom: 1px solid var(--border);
-    padding: 1rem 0;
-    margin-bottom: 2rem;
-}
-
-nav .container { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
-
-nav .brand {
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-weight: 700;
     font-size: 1.25rem;
     color: var(--primary);
     text-decoration: none;
+    white-space: nowrap;
 }
 
-nav .brand img {
+.brand img {
     height: 28px;
     width: auto;
-    vertical-align: middle;
-    margin-right: 0.5rem;
+    flex-shrink: 0;
 }
 
-nav a {
+.sidebar {
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    padding: 1rem 0.5rem;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: width 0.2s ease;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 1.5rem;
+}
+
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     color: var(--text);
     text-decoration: none;
-    padding: 0.5rem 0.75rem;
+    padding: 0.6rem 0.75rem;
     border-radius: 6px;
     transition: background 0.2s;
+    white-space: nowrap;
 }
 
-nav a:hover { background: var(--bg); }
+.sidebar-nav a:hover { background: var(--bg); }
+
+.topbar {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0.5rem 1rem;
+}
+
+@media (min-width: 768px) {
+    body.nav-active {
+        padding-left: 72px;
+        padding-top: 60px;
+        transition: padding-left 0.2s ease;
+    }
+    body.nav-active:has(.sidebar:hover) { padding-left: 240px; }
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 72px;
+        height: 100vh;
+        z-index: 100;
+    }
+    .sidebar:hover { width: 240px; }
+    .sidebar:not(:hover) .brand { justify-content: center; }
+    .sidebar:not(:hover) .sidebar-nav a { justify-content: center; gap: 0; }
+    .sidebar:not(:hover) .sidebar-label { display: none; }
+    .sidebar:hover .sidebar-label { animation: sidebar-label-fade 0.2s ease 0.18s both; }
+    .topbar {
+        position: fixed;
+        top: 0;
+        left: 72px;
+        right: 0;
+        height: 60px;
+        z-index: 100;
+        transition: left 0.2s ease;
+    }
+    body.nav-active:has(.sidebar:hover) .topbar { left: 240px; }
+}
+
+@keyframes sidebar-label-fade {
+    from { opacity: 0; transform: translateX(-4px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@media (max-width: 767px) {
+    .sidebar { padding: 1rem; }
+    .sidebar-nav { flex-direction: row; flex-wrap: wrap; margin-top: 0.75rem; }
+    .topbar { margin-bottom: 1rem; }
+}
 
 .nav-user {
-    margin-left: auto;
     position: relative;
 }
 

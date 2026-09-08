@@ -19,7 +19,7 @@ Administracion_financiera/
 │   ├── config/                  # Configuración 12-factor (env vars)
 │   │   └── config.go
 │   ├── model/                   # Tipos de dominio compartidos
-│   │   ├── models.go            # Usuario, Transaccion, CostoFijo, Categoria, Mes, Deuda...
+│   │   ├── models.go            # Usuario, Transaccion, Categoria, Mes...
 │   │   └── errors.go            # Errores de dominio tipados
 │   ├── middleware/              # Capa transversal HTTP
 │   │   ├── auth.go              # JWT → inyecta userID en context
@@ -28,27 +28,21 @@ Administracion_financiera/
 │   ├── repository/              # Acceso a datos (database/sql, SQL directo)
 │   │   ├── usuario_repo.go
 │   │   ├── transaccion_repo.go
-│   │   ├── costofijo_repo.go
 │   │   ├── categoria_repo.go
-│   │   ├── mes_repo.go
-│   │   └── deuda_repo.go
+│   │   └── mes_repo.go
 │   ├── service/                 # Lógica de negocio
 │   │   ├── auth_service.go      # Registro, login, JWT
 │   │   ├── transaccion_service.go
-│   │   ├── costofijo_service.go
-│   │   ├── mes_service.go       # Cierre mensual, recálculo, precarga costos fijos
-│   │   ├── dashboard_service.go # Métricas y agregaciones
-│   │   └── deuda_service.go     # Gestión de deudas
+│   │   ├── mes_service.go       # Cierre mensual y recálculo
+│   │   └── dashboard_service.go # Métricas y agregaciones
 │   └── handler/                 # Capa HTTP (JSON API + páginas HTMX)
 │       ├── helpers.go           # Respuestas JSON, manejo de errores
 │       ├── template.go          # Carga de templates (embed)
 │       ├── auth_handler.go
 │       ├── transaccion_handler.go
-│       ├── costofijo_handler.go
 │       ├── mes_handler.go
 │       ├── dashboard_handler.go
 │       ├── categoria_handler.go
-│       ├── deuda_handler.go
 │       └── pages_handler.go     # Páginas HTML (dashboard, transacciones, balance)
 ├── web/
 │   ├── embed.go                 # //go:embed templates → FS
@@ -58,13 +52,11 @@ Administracion_financiera/
 │       ├── register.html
 │       ├── dashboard.html
 │       ├── transacciones.html
-│       ├── costos_fijos.html
 │       ├── balance.html
 │       ├── meses.html
-│       └── deudas.html
 ├── migrations/
 │   ├── 001_init.up.sql / .down.sql
-│   └── 002_deudas.up.sql / .down.sql
+│   └── 008_quitar_deudas_costos_fijos.up.sql / .down.sql
 ├── scripts/
 │   ├── db-init.sh              # Crea la DB y aplica migraciones (make db-init)
 │   └── coverage.sh             # Test coverage (make coverage)
@@ -115,21 +107,15 @@ RequestID → Recoverer → Logging → CORS → DetectHTMX → Timeout
 | GET | `/api/categorias` | Categorías del sistema + personalizadas |
 | GET/POST | `/api/transacciones` | Listar / crear transacciones |
 | GET/PUT/DELETE | `/api/transacciones/{id}` | CRUD transacción |
-| GET/POST | `/api/costos-fijos` | Listar / crear costos fijos |
-| GET/PUT/DELETE | `/api/costos-fijos/{id}` | CRUD costo fijo |
-| PATCH | `/api/costos-fijos/{id}/toggle` | Activar/desactivar |
 | GET | `/api/meses` | Meses del usuario |
 | GET | `/api/meses/current` | Mes actual |
-| POST | `/api/meses/{id}/cerrar` | Cerrar mes + precargar costos fijos |
+| POST | `/api/meses/{id}/cerrar` | Cerrar mes + crear el siguiente |
 | POST | `/api/meses/{id}/recalcular` | Recalcular indicadores |
-| GET/POST | `/api/deudas` | Listar / crear deudas |
-| GET/PUT/DELETE | `/api/deudas/{id}` | CRUD deuda |
 | GET | `/api/dashboard` | Métricas JSON del dashboard |
 | GET | `/api/dashboard/page` | Dashboard HTML |
 | GET | `/api/transacciones/page` | Transacciones HTML |
-| GET | `/api/costos-fijos/page` | Costos fijos HTML |
 | GET | `/api/balance/page`, `/api/balance/{id}/page` | Balance imprimible |
-| GET | `/api/meses/page`, `/api/deudas/page` | Páginas HTML de meses y deudas |
+| GET | `/api/meses/page` | Meses HTML |
 
 ---
 
@@ -137,8 +123,7 @@ RequestID → Recoverer → Logging → CORS → DetectHTMX → Timeout
 
 ### `internal/service/mes_service.go` — Cierre mensual (regla de negocio 5.1)
 - `Cerrar()`: congela el mes (estado `cerrado`), calcula ingresos/egresos/superávit/tasa de ahorro,
-  acumula patrimonio, **precarga los costos fijos activos** como transacciones `pendientes` en el
-  próximo mes y crea/abre el mes siguiente.
+  acumula el ahorro (`ahorro_acumulado` = ahorro del mes anterior + superávit actual) y crea/abre el mes siguiente.
 - `Recalcular()`: recalcula indicadores de un mes sin cerrarlo.
 
 ### `internal/service/transaccion_service.go`
@@ -151,13 +136,6 @@ RequestID → Recoverer → Logging → CORS → DetectHTMX → Timeout
 
 ### `internal/service/auth_service.go`
 - `Register()` / `Login()`: hash bcrypt + emisión de JWT (HS256) con `sub = userID`.
-
-### `internal/service/deuda_service.go`
-- `Create()`: valida entidad no vacía y monto total > 0; tipo por defecto `otro`
-  (tipos válidos: `tarjeta_credito`, `prestamo`, `hipoteca`, `personal`, `otro`).
-- `Update()`/`Delete()`: operan sobre deudas del usuario autenticado (tenancy por `usuario_id`).
-- El total de pasivos se calcula como la suma de los `monto_total` de las deudas (`SUM(monto_total)`)
-  y alimenta `pasivos_total` en el cierre/recalculo de mes.
 
 ### `internal/handler/helpers.go`
 - `handleServiceError()`: traduce errores de dominio (`ErrNotFound`, `ErrMesCerrado`, …) a códigos HTTP.
@@ -193,7 +171,7 @@ El proyecto usa la misma instancia local de MySQL. Para ver y explorar los datos
 | Password | (vacío — guardalo en el *keychain* si te lo pide) |
 
 3. Click **Test Connection** → **OK** → doble click en la conexión para abrirla.
-4. En el panel izquierdo (*SCHEMAS*) aparece el esquema `finanzas`. Las tablas (`usuarios`, `categorias`, `meses`, `transacciones`, `costos_fijos`, `deudas`) se crean con `make db-init`.
+4. En el panel izquierdo (*SCHEMAS*) aparece el esquema `finanzas`. Las tablas (`usuarios`, `categorias`, `meses`, `transacciones`) se crean con `make db-init`.
 
 > Si configuraste una contraseña para `root` (o usás otro usuario), los datos de la conexión tienen que coincidir con el `DATABASE_URL` de tu `env.secrets`.
 
@@ -240,12 +218,11 @@ make docker-run
 
 | Regla | Implementación |
 |-------|----------------|
-| Patrimonio = Activos − Pasivos | `mes_service` al cerrar; `patrimonio` en tabla `meses` |
+| Ahorro acumulado = ahorro anterior + superávit | `mes_service` al cerrar; `ahorro_acumulado` en tabla `meses` |
 | Resultado neto = Ingresos − Egresos | `mes_service.Cerrar`, `dashboard_service` |
 | Tasa de ahorro = Superávit / Ingresos | `mes_service`, objetivo >15% (dashboard) |
 | Mes cerrado = inmutable | `transaccion_service` valida `estado='cerrado'` |
-| Costos fijos → precarga mensual | `mes_service.Cerrar` → `CreateTransaccionesFromFijos` |
-| Cierre manual o automático | endpoint `POST /api/meses/{id}/cerrar` |
+| Cierre manual | endpoint `POST /api/meses/{id}/cerrar` |
 | Correcciones vía ajustes | `TransaccionRepo.CreateAjuste` (estado `ajuste`) |
 | Categorías predefinidas + subcategorías | seed en migración; `es_personalizada` soportada |
 | Cobertura de gastos (meses de reserva) | calculable desde `ahorro_acumulado / gasto mensual` |
@@ -288,7 +265,7 @@ curl -s -X POST http://localhost:8080/api/transacciones \
 # Crear egreso
 curl -s -X POST http://localhost:8080/api/transacciones \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"tipo":"egreso","monto":45000,"fecha":"2026-07-12","categoria_id":5,"descripcion":"Alquiler","medio_pago":"debito","es_fijo":true}'
+  -d '{"tipo":"egreso","monto":45000,"fecha":"2026-07-12","categoria_id":5,"descripcion":"Alquiler","medio_pago":"debito"}'
 
 # Listar todas
 curl -s "http://localhost:8080/api/transacciones?limit=50" -H "Authorization: Bearer $TOKEN" | jq
@@ -308,51 +285,10 @@ curl -s -X PUT http://localhost:8080/api/transacciones/1 \
 curl -s -X DELETE http://localhost:8080/api/transacciones/1 -H "Authorization: Bearer $TOKEN" -w "%{http_code}"
 ```
 
-### Costos Fijos
+### Costos fijos y deudas
 
-```bash
-# Crear
-curl -s -X POST http://localhost:8080/api/costos-fijos \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"categoria_id":6,"descripcion":"Internet","monto_estimado":12000,"dia_vencimiento":5,"tipo_periodo":"mensual"}'
-
-# Listar
-curl -s http://localhost:8080/api/costos-fijos -H "Authorization: Bearer $TOKEN" | jq
-
-# Activar/desactivar
-curl -s -X PATCH http://localhost:8080/api/costos-fijos/1/toggle -H "Authorization: Bearer $TOKEN" | jq
-
-# Editar
-curl -s -X PUT http://localhost:8080/api/costos-fijos/1 \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"categoria_id":6,"descripcion":"Internet + Fibra","monto_estimado":14000,"dia_vencimiento":5,"tipo_periodo":"mensual"}'
-
-# Eliminar
-curl -s -X DELETE http://localhost:8080/api/costos-fijos/1 -H "Authorization: Bearer $TOKEN" -w "%{http_code}"
-```
-
-### Deudas
-
-```bash
-# Crear
-curl -s -X POST http://localhost:8080/api/deudas \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Cuota notebook","monto_total":300000,"proximo_vencimiento":"2026-08-15"}'
-
-# Listar
-curl -s http://localhost:8080/api/deudas -H "Authorization: Bearer $TOKEN" | jq
-
-# Ver una
-curl -s http://localhost:8080/api/deudas/1 -H "Authorization: Bearer $TOKEN" | jq
-
-# Editar (ej: actualizar el monto total)
-curl -s -X PUT http://localhost:8080/api/deudas/1 \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"tipo":"tarjeta_credito","entidad":"Visa","descripcion":"Cuota notebook","monto_total":260000,"proximo_vencimiento":"2026-08-15"}'
-
-# Eliminar
-curl -s -X DELETE http://localhost:8080/api/deudas/1 -H "Authorization: Bearer $TOKEN" -w "%{http_code}"
-```
+> Estas features fueron eliminadas del producto (migración 008): no hay endpoints.
+> Los gastos recurrentes se registran como transacciones de egreso normales.
 
 ### Meses y Cierre
 
@@ -363,7 +299,7 @@ curl -s http://localhost:8080/api/meses/current -H "Authorization: Bearer $TOKEN
 # Todos los meses
 curl -s http://localhost:8080/api/meses -H "Authorization: Bearer $TOKEN" | jq
 
-# Cerrar mes (precarga costos fijos en el siguiente)
+# Cerrar mes (crea y abre el siguiente)
 curl -s -X POST http://localhost:8080/api/meses/1/cerrar -H "Authorization: Bearer $TOKEN" | jq
 
 # Recalcular
@@ -384,9 +320,7 @@ Desde el navegador entrá a `http://localhost:8080/` (redirige a `/login`). Cre�
 open "http://localhost:8080/"                          # Redirige a /login
 open "http://localhost:8080/api/dashboard/page"        # Dashboard
 open "http://localhost:8080/api/transacciones/page"    # Transacciones
-open "http://localhost:8080/api/costos-fijos/page"     # Costos fijos
 open "http://localhost:8080/api/meses/page"            # Meses
-open "http://localhost:8080/api/deudas/page"           # Deudas
 open "http://localhost:8080/api/balance/page"          # Balance (Ctrl+P para PDF)
 open "http://localhost:8080/api/balance/1/page"        # Balance de un mes específico
 ```
@@ -402,14 +336,9 @@ usuarios(id, nombre, email UNIQUE, password_hash, moneda_default, created_at)
 categorias(id, nombre, tipo[ingreso|egreso], icono, es_personalizada, usuario_id?)
 meses(id, usuario_id, periodo 'YYYY-MM' UNIQUE, estado[abierto|cerrado],
       ingresos_total, egresos_total, superavit, tasa_ahorro,
-      ahorro_acumulado, pasivos_total, patrimonio, created_at)
+      ahorro_acumulado, created_at)
 transacciones(id, usuario_id, tipo, monto, fecha, categoria_id, descripcion,
-      medio_pago, es_fijo, cuotas_total, cuota_actual,
-      estado[pendiente|confirmado|ajuste], mes_id?, created_at, updated_at)
-costos_fijos(id, usuario_id, categoria_id, descripcion, monto_estimado,
-      dia_vencimiento[1-31], activo, tipo_periodo[mensual|bimestral|anual], created_at)
-deudas(id, usuario_id, tipo[tarjeta_credito|prestamo|hipoteca|personal|otro], entidad,
-      descripcion, monto_total, proximo_vencimiento, created_at, updated_at)
+      medio_pago, estado[pendiente|confirmado|ajuste], mes_id?, created_at, updated_at)
 ```
 
 Categorías por defecto (seed): Sueldo 💰, Freelance 💻, Ventas 📦, Otros Ingresos 📥,
@@ -442,6 +371,5 @@ Si el hook rechaza un mensaje, corregilo y volvé a commitear.
 
 - [ ] Metas de Ahorro (`metas_ahorro`) y asignación de superávit
 - [ ] Presupuestos por categoría con alertas 80%/100%
-- [ ] Gestión de tarjetas/deudas con calculadora de intereses
 - [ ] Reportes anuales y exportación CSV server-side
 - [ ] Importación de CSV bancario

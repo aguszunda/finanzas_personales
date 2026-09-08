@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -259,5 +260,161 @@ func TestRenderTemplateFragment_NilTmpl(t *testing.T) {
 	renderTemplateFragment(rec, "test", nil)
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+// layoutOK/pageOK son un par de templates mínimos: el layout ejecuta el bloque
+// "content" que define la página, replicando el layout.html real.
+const layoutOK = `hola {{block "content" .}}vacio{{end}}`
+const pageOK = `{{define "content"}}content-ok{{end}}`
+
+func fakeTemplateManager(files map[string]string, funcs template.FuncMap) *TemplateManager {
+	if funcs == nil {
+		funcs = template.FuncMap{}
+	}
+	return &TemplateManager{funcs: funcs, files: files}
+}
+
+func TestSetTemplateManager(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmgr := fakeTemplateManager(map[string]string{"layout": layoutOK}, nil)
+	SetTemplateManager(tmgr)
+	if tmpl != tmgr {
+		t.Error("SetTemplateManager debería setear el template manager global")
+	}
+}
+
+func TestRenderTemplate_LayoutMissing(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{"transacciones": pageOK}, nil)
+
+	rec := httptest.NewRecorder()
+	renderTemplate(rec, "transacciones", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplate_PageNotFound(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{"layout": layoutOK}, nil)
+
+	rec := httptest.NewRecorder()
+	renderTemplate(rec, "noexiste", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplate_LayoutParseError(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{"layout": "{{", "transacciones": pageOK}, nil)
+
+	rec := httptest.NewRecorder()
+	renderTemplate(rec, "transacciones", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplate_PageParseError(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{"layout": layoutOK, "transacciones": "{{"}, nil)
+
+	rec := httptest.NewRecorder()
+	renderTemplate(rec, "transacciones", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplate_FragmentFaltanteSeOmite(t *testing.T) {
+	// "register" declara el fragment register_exito en pageFragments: si el
+	// archivo no existe el render continúa sin error.
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{"layout": layoutOK, "register": pageOK}, nil)
+
+	rec := httptest.NewRecorder()
+	renderTemplate(rec, "register", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if rec.Body.String() != "hola content-ok" {
+		t.Errorf("unexpected body: %q", rec.Body.String())
+	}
+}
+
+func TestRenderTemplate_FragmentParseError(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{
+		"layout":         layoutOK,
+		"register":       pageOK,
+		"register_exito": "{{",
+	}, nil)
+
+	rec := httptest.NewRecorder()
+	renderTemplate(rec, "register", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplate_ExecuteError(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{
+		"layout": layoutOK,
+		"page":   `{{define "content"}}{{boom}}{{end}}`,
+	}, template.FuncMap{"boom": func() (string, error) { return "", errors.New("boom") }})
+
+	rec := httptest.NewRecorder()
+	renderTemplate(rec, "page", nil)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplateFragment_NotFound(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{}, nil)
+
+	rec := httptest.NewRecorder()
+	renderTemplateFragment(rec, "noexiste", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplateFragment_ParseError(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{"frag": "{{"}, nil)
+
+	rec := httptest.NewRecorder()
+	renderTemplateFragment(rec, "frag", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestRenderTemplateFragment_ExecuteError(t *testing.T) {
+	old := tmpl
+	defer func() { tmpl = old }()
+	tmpl = fakeTemplateManager(map[string]string{
+		"frag": `{{boom}}`,
+	}, template.FuncMap{"boom": func() (string, error) { return "", errors.New("boom") }})
+
+	rec := httptest.NewRecorder()
+	renderTemplateFragment(rec, "frag", nil)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
 	}
 }

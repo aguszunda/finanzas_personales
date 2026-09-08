@@ -22,17 +22,13 @@ type handlerFixture struct {
 
 	authSvc  *service.AuthService
 	transSvc *service.TransaccionService
-	cfSvc    *service.CostoFijoService
 	mesSvc   *service.MesService
-	deudaSvc *service.DeudaService
 	dashSvc  *service.DashboardService
 	catRepo  *repository.CategoriaRepo
 
 	authH  *AuthHandler
 	transH *TransaccionHandler
-	cfH    *CostoFijoHandler
 	mesH   *MesHandler
-	deudaH *DeudaHandler
 	dashH  *DashboardHandler
 	catH   *CategoriaHandler
 	pagesH *PagesHandler
@@ -50,36 +46,28 @@ func newHandlerFixture(t *testing.T) *handlerFixture {
 	ur := repository.NewUsuarioRepo(db)
 	mr := repository.NewMesRepo(db)
 	tr := repository.NewTransaccionRepo(db)
-	cfr := repository.NewCostoFijoRepo(db)
-	dr := repository.NewDeudaRepo(db)
 	cr := repository.NewCategoriaRepo(db)
 
 	mailer := &fakeMailer{}
 	authSvc := service.NewAuthService(ur, []byte("test-secret"), 72*time.Hour, mailer, "http://localhost:8080")
 	transSvc := service.NewTransaccionService(tr, mr)
-	cfSvc := service.NewCostoFijoService(cfr, mr)
-	mesSvc := service.NewMesService(mr, tr, cfr, dr)
-	deudaSvc := service.NewDeudaService(dr, cr, transSvc)
-	dashSvc := service.NewDashboardService(mr, tr, cr, dr)
+	mesSvc := service.NewMesService(mr, tr)
+	dashSvc := service.NewDashboardService(mr, tr, cr)
 
 	return &handlerFixture{
 		db:       db,
 		mock:     mock,
 		authSvc:  authSvc,
 		transSvc: transSvc,
-		cfSvc:    cfSvc,
 		mesSvc:   mesSvc,
-		deudaSvc: deudaSvc,
 		dashSvc:  dashSvc,
 		catRepo:  cr,
 		authH:    NewAuthHandler(authSvc),
 		transH:   NewTransaccionHandler(transSvc),
-		cfH:      NewCostoFijoHandler(cfSvc),
 		mesH:     NewMesHandler(mesSvc),
-		deudaH:   NewDeudaHandler(deudaSvc),
 		dashH:    NewDashboardHandler(dashSvc),
 		catH:     NewCategoriaHandler(cr),
-		pagesH:   NewPagesHandler(dashSvc, transSvc, cfSvc, mesSvc, deudaSvc, cr, authSvc),
+		pagesH:   NewPagesHandler(dashSvc, transSvc, mesSvc, cr, authSvc),
 	}
 }
 

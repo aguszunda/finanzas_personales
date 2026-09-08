@@ -38,10 +38,6 @@
             <option value="transferencia" {{if and .transaccion (eq .transaccion.MedioPago "transferencia")}}selected{{end}}>Transferencia</option>
         </select>
     </div>
-    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem">
-        <input type="checkbox" name="es_fijo" id="es_fijo" value="true" {{if and .transaccion .transaccion.EsFijo}}checked{{end}}>
-        <label for="es_fijo" style="margin:0">Es costo fijo</label>
-    </div>
     <div class="modal-actions">
         <button type="button" class="btn btn-outline" onclick="document.getElementById('form-modal').style.display='none'">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar</button>

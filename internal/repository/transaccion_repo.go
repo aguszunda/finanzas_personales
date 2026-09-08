@@ -19,11 +19,10 @@ func NewTransaccionRepo(db *sql.DB) *TransaccionRepo {
 
 func (r *TransaccionRepo) Create(ctx context.Context, t *model.Transaccion) error {
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO transacciones (usuario_id, tipo, monto, fecha, categoria_id, descripcion, medio_pago, es_fijo, cuotas_total, cuota_actual, estado, mes_id)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO transacciones (usuario_id, tipo, monto, fecha, categoria_id, descripcion, medio_pago, estado, mes_id)
+		 VALUES (?,?,?,?,?,?,?,?,?)`,
 		t.UsuarioID, t.Tipo, t.Monto, t.Fecha, t.CategoriaID,
-		t.Descripcion, t.MedioPago, t.EsFijo, t.CuotasTotal, t.CuotaActual,
-		t.Estado, t.MesID,
+		t.Descripcion, t.MedioPago, t.Estado, t.MesID,
 	)
 	if err != nil {
 		return err
@@ -42,10 +41,10 @@ func (r *TransaccionRepo) FindByID(ctx context.Context, id, usuarioID int64) (*m
 	t := &model.Transaccion{}
 	var fecha time.Time
 	err := r.db.QueryRowContext(ctx,
-		`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
+		`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.estado, t.mes_id, t.created_at, t.updated_at
 		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id
 		 WHERE t.id = ? AND t.usuario_id = ?`, id, usuarioID,
-	).Scan(&t.ID, &t.UsuarioID, &t.Tipo, &t.Monto, &fecha, &t.CategoriaID, &t.Categoria, &t.Descripcion, &t.MedioPago, &t.EsFijo, &t.CuotasTotal, &t.CuotaActual, &t.Estado, &t.MesID, &t.CreatedAt, &t.UpdatedAt)
+	).Scan(&t.ID, &t.UsuarioID, &t.Tipo, &t.Monto, &fecha, &t.CategoriaID, &t.Categoria, &t.Descripcion, &t.MedioPago, &t.Estado, &t.MesID, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrNotFound
@@ -61,7 +60,7 @@ func (r *TransaccionRepo) FindByUsuarioID(ctx context.Context, usuarioID int64, 
 		limit = 50
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
+		`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.estado, t.mes_id, t.created_at, t.updated_at
 		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id
 		 WHERE t.usuario_id = ?
 		 ORDER BY t.fecha DESC, t.created_at DESC
@@ -75,7 +74,7 @@ func (r *TransaccionRepo) FindByUsuarioID(ctx context.Context, usuarioID int64, 
 
 func (r *TransaccionRepo) FindByMesID(ctx context.Context, mesID, usuarioID int64) ([]model.Transaccion, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
+		`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.estado, t.mes_id, t.created_at, t.updated_at
 		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id
 		 WHERE t.mes_id = ? AND t.usuario_id = ?
 		 ORDER BY t.fecha DESC, t.created_at DESC`, mesID, usuarioID)
@@ -100,7 +99,7 @@ func (r *TransaccionRepo) FindByRango(ctx context.Context, usuarioID int64, desd
 
 func (r *TransaccionRepo) findByRango(ctx context.Context, usuarioID int64, start, end string) ([]model.Transaccion, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
+		`SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.estado, t.mes_id, t.created_at, t.updated_at
 		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id
 		 WHERE t.usuario_id = ? AND t.fecha >= ? AND t.fecha <= ?
 		 ORDER BY t.fecha DESC, t.created_at DESC`, usuarioID, start, end)
@@ -113,9 +112,9 @@ func (r *TransaccionRepo) findByRango(ctx context.Context, usuarioID int64, star
 
 func (r *TransaccionRepo) Update(ctx context.Context, t *model.Transaccion) error {
 	tag, err := r.db.ExecContext(ctx,
-		`UPDATE transacciones SET tipo=?, monto=?, fecha=?, categoria_id=?, descripcion=?, medio_pago=?, es_fijo=?, cuotas_total=?, cuota_actual=?, updated_at=NOW()
+		`UPDATE transacciones SET tipo=?, monto=?, fecha=?, categoria_id=?, descripcion=?, medio_pago=?, updated_at=NOW()
 		 WHERE id=? AND usuario_id=?`,
-		t.Tipo, t.Monto, t.Fecha, t.CategoriaID, t.Descripcion, t.MedioPago, t.EsFijo, t.CuotasTotal, t.CuotaActual, t.ID, t.UsuarioID)
+		t.Tipo, t.Monto, t.Fecha, t.CategoriaID, t.Descripcion, t.MedioPago, t.ID, t.UsuarioID)
 	if err != nil {
 		return err
 	}
@@ -181,7 +180,7 @@ func scanTransacciones(rows *sql.Rows) ([]model.Transaccion, error) {
 	for rows.Next() {
 		var t model.Transaccion
 		var fecha time.Time
-		if err := rows.Scan(&t.ID, &t.UsuarioID, &t.Tipo, &t.Monto, &fecha, &t.CategoriaID, &t.Categoria, &t.Descripcion, &t.MedioPago, &t.EsFijo, &t.CuotasTotal, &t.CuotaActual, &t.Estado, &t.MesID, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.UsuarioID, &t.Tipo, &t.Monto, &fecha, &t.CategoriaID, &t.Categoria, &t.Descripcion, &t.MedioPago, &t.Estado, &t.MesID, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		t.Fecha = fecha.Format("2006-01-02")

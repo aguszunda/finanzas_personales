@@ -168,10 +168,26 @@ func schemaVersion(t *testing.T, db *sql.DB) (version int, dirty bool) {
 var expectedColumns = map[string][]string{
 	"usuarios":      {"id", "nombre", "email", "password_hash", "moneda_default", "email_verificado", "token_verificacion", "token_expiracion", "created_at"},
 	"categorias":    {"id", "nombre", "tipo", "icono", "es_personalizada", "usuario_id", "created_at"},
-	"meses":         {"id", "usuario_id", "periodo", "estado", "ingresos_total", "egresos_total", "superavit", "tasa_ahorro", "ahorro_acumulado", "pasivos_total", "patrimonio", "created_at"},
-	"transacciones": {"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"},
-	"costos_fijos":  {"id", "usuario_id", "categoria_id", "descripcion", "monto_estimado", "dia_vencimiento", "activo", "tipo_periodo", "created_at"},
-	"deudas":        {"id", "usuario_id", "tipo", "entidad", "descripcion", "monto_total", "proximo_vencimiento", "created_at", "updated_at"},
+	"meses":         {"id", "usuario_id", "periodo", "estado", "ingresos_total", "egresos_total", "superavit", "tasa_ahorro", "ahorro_acumulado", "created_at"},
+	"transacciones": {"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "descripcion", "medio_pago", "estado", "mes_id", "created_at", "updated_at"},
+}
+
+// tablesDroppedInUps reúne las tablas que alguna migración .up.sql borra
+// (p.ej. deudas y costos_fijos en 008). Esas no deben existir tras migrar.
+func tablesDroppedInUps(t *testing.T) map[string]bool {
+	t.Helper()
+	dropped := map[string]bool{}
+	for _, f := range migrationUpFiles(t) {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatalf("read %s: %v", f, err)
+		}
+		re := regexp.MustCompile(`(?i)DROP TABLE IF EXISTS\s+([a-z_]+)`)
+		for _, m := range re.FindAllStringSubmatch(string(data), -1) {
+			dropped[m[1]] = true
+		}
+	}
+	return dropped
 }
 
 func TestMigrations_FreshSchemaDesdeArchivos(t *testing.T) {
@@ -181,12 +197,22 @@ func TestMigrations_FreshSchemaDesdeArchivos(t *testing.T) {
 	schema := currentSchema(t, db)
 	wantVersion := latestMigrationVersion(t)
 
-	// Todas las tablas declaradas en los .up.sql existen tras migrar.
+	// Todas las tablas declaradas en los .up.sql existen tras migrar, salvo
+	// las que una migración posterior elimina (deudas, costos_fijos).
+	dropped := tablesDroppedInUps(t)
 	for _, f := range migrationUpFiles(t) {
 		for _, table := range tablesInUpFile(t, f) {
+			if dropped[table] {
+				continue
+			}
 			if !tableExistsIn(t, db, schema, table) {
 				t.Errorf("tabla %q (definida en %s) no existe tras migrar", table, filepath.Base(f))
 			}
+		}
+	}
+	for table := range dropped {
+		if tableExistsIn(t, db, schema, table) {
+			t.Errorf("tabla %q debería estar eliminada tras migrar", table)
 		}
 	}
 
@@ -309,13 +335,22 @@ func TestMigrations_Down_Up_RoundTrip(t *testing.T) {
 		}
 	}
 
-	// Up de nuevo: todo recreado desde los archivos.
+	// Up de nuevo: todo recreado desde los archivos (salvo lo que 008 borra).
 	applyMigrations(t, dsn, -1)
+	dropped := tablesDroppedInUps(t)
 	for _, f := range ups {
 		for _, table := range tablesInUpFile(t, f) {
+			if dropped[table] {
+				continue
+			}
 			if !tableExistsIn(t, db, schema, table) {
 				t.Errorf("tabla %q (de %s) no existe tras el round-trip", table, filepath.Base(f))
 			}
+		}
+	}
+	for table := range dropped {
+		if tableExistsIn(t, db, schema, table) {
+			t.Errorf("tabla %q debería estar eliminada tras el round-trip", table)
 		}
 	}
 	if version, _ := schemaVersion(t, db); version != latestMigrationVersion(t) {
