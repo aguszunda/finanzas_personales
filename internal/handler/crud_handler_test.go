@@ -245,6 +245,33 @@ func TestTransaccionHandler_Create_InvalidMonto(t *testing.T) {
 	}
 }
 
+func TestTransaccionHandler_Create_HTMX_DesdeInicio(t *testing.T) {
+	f := newHandlerFixture(t)
+	f.mock.ExpectQuery(regexp.QuoteMeta(qMesByPeriodo)).
+		WithArgs(int64(1), "2026-08").
+		WillReturnRows(mesRows(9, "2026-08", "abierto"))
+	f.mock.ExpectExec(regexp.QuoteMeta(qTransInsert)).
+		WithArgs(int64(1), "ingreso", 1000.0, "2026-08-10", int64(1), "Sueldo",
+			"transferencia", "confirmado", int64(9)).
+		WillReturnResult(sqlmock.NewResult(4, 1))
+
+	body := `{"tipo":"ingreso","monto":1000,"fecha":"2026-08-10","categoria_id":1,"descripcion":"Sueldo","medio_pago":"transferencia"}`
+	req := httptest.NewRequest("POST", "/api/transacciones", strings.NewReader(body)).
+		WithContext(ctxWithHTMX(1))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("HX-Current-URL", "/api/dashboard/page")
+	rec := httptest.NewRecorder()
+
+	f.transH.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("HX-Redirect"); got != "/api/dashboard/page" {
+		t.Fatalf("expected HX-Redirect to /api/dashboard/page, got %q", got)
+	}
+}
+
 func TestTransaccionHandler_Create_MesCerrado(t *testing.T) {
 	f := newHandlerFixture(t)
 	f.mock.ExpectQuery(regexp.QuoteMeta(qMesByPeriodo)).

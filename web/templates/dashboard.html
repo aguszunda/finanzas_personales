@@ -76,7 +76,7 @@
                     <span class="badge badge-egreso">💸 Egreso</span>
                     {{end}}
                 </td>
-                <td>{{.Categoria}}</td>
+                <td><span class="cell-icon">{{catIcon .Categoria}}</span>{{.Categoria}}</td>
                 <td>{{.Descripcion}}</td>
                 <td>{{.MedioPago}}</td>
                 <td class="text-right" style="font-weight:600;color:{{if eq .Tipo "ingreso"}}var(--success){{else}}var(--danger){{end}}">
