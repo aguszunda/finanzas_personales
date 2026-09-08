@@ -60,7 +60,7 @@ func (h *TransaccionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		handleServiceError(w, err)
 		return
 	}
-	respondMutation(w, r, http.StatusCreated, t, "/api/transacciones/page")
+	respondMutation(w, r, http.StatusCreated, t, mutationRedirectURL(r, transaccionesPagePath))
 }
 
 func (h *TransaccionHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +76,7 @@ func (h *TransaccionHandler) Update(w http.ResponseWriter, r *http.Request) {
 		handleServiceError(w, err)
 		return
 	}
-	respondMutation(w, r, http.StatusOK, t, "/api/transacciones/page")
+	respondMutation(w, r, http.StatusOK, t, mutationRedirectURL(r, transaccionesPagePath))
 }
 
 func (h *TransaccionHandler) Delete(w http.ResponseWriter, r *http.Request) {

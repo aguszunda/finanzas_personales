@@ -92,6 +92,11 @@ func setFormField(field reflect.Value, raw string) {
 
 var tmpl *TemplateManager
 
+const (
+	dashboardPagePath     = "/api/dashboard/page"
+	transaccionesPagePath = "/api/transacciones/page"
+)
+
 func SetTemplateManager(t *TemplateManager) {
 	tmpl = t
 }
@@ -202,6 +207,21 @@ func respondMutation(w http.ResponseWriter, r *http.Request, jsonStatus int, dat
 		return
 	}
 	respondJSON(w, jsonStatus, data)
+}
+
+// mutationRedirectURL elige a qué página volver tras una mutación desde la
+// web: si se originó en el dashboard (inicio), ahí se queda; de lo contrario
+// vuelve a defaultURL. La URL de origen se toma de HX-Current-URL (HTMX) o
+// del Referer.
+func mutationRedirectURL(r *http.Request, defaultURL string) string {
+	from := r.Header.Get("HX-Current-URL")
+	if from == "" {
+		from = r.Referer()
+	}
+	if strings.Contains(from, dashboardPagePath) {
+		return dashboardPagePath
+	}
+	return defaultURL
 }
 
 func handleServiceError(w http.ResponseWriter, err error) {

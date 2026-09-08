@@ -2,45 +2,116 @@
 <h2 id="form-modal-title">{{if .transaccion}}Editar Transacción{{else}}Nueva Transacción{{end}}</h2>
 <form {{if .transaccion}}hx-put="/api/transacciones/{{.transaccion.ID}}"{{else}}hx-post="/api/transacciones"{{end}} hx-swap="none" method="post" action="/api/transacciones">
     <div class="form-group">
-        <label>Tipo</label>
-        <select name="tipo" required>
-            <option value="ingreso" {{if and .transaccion (eq .transaccion.Tipo "ingreso")}}selected{{end}}>💰 Ingreso</option>
-            <option value="egreso" {{if and .transaccion (eq .transaccion.Tipo "egreso")}}selected{{end}}>💸 Egreso</option>
-        </select>
-    </div>
-    <div class="form-group">
         <label>Monto</label>
         <input type="number" name="monto" step="0.01" min="0.01" required {{if .transaccion}}value="{{.transaccion.Monto}}"{{end}}>
     </div>
     <div class="form-group">
-        <label>Fecha</label>
-        <input type="date" name="fecha" required {{if .transaccion}}value="{{.transaccion.Fecha}}"{{end}}>
+        <label>Tipo</label>
+        <div class="segmented-control">
+            <label class="seg-option">
+                <input type="radio" name="tipo" value="ingreso" {{if not .transaccion}}checked{{else if eq .transaccion.Tipo "ingreso"}}checked{{end}}>
+                <span class="seg-btn seg-ingreso">Ingreso</span>
+            </label>
+            <label class="seg-option">
+                <input type="radio" name="tipo" value="egreso" {{if and .transaccion (eq .transaccion.Tipo "egreso")}}checked{{end}}>
+                <span class="seg-btn seg-egreso">Egreso</span>
+            </label>
+        </div>
     </div>
-    <div class="form-group">
+<div class="form-group">
         <label>Categoría</label>
-        <select name="categoria_id" required>
-            {{range .categorias}}
-            <option value="{{.ID}}" {{if and $.transaccion (eq $.transaccion.CategoriaID .ID)}}selected{{end}}>{{.Icono}} {{.Nombre}}</option>
-            {{end}}
-        </select>
+        {{if .categorias}}
+        {{$primera := index .categorias 0}}
+        {{$selCat := $primera}}
+        {{if $.transaccion}}
+        {{range .categorias}}
+        {{if eq .ID $.transaccion.CategoriaID}}{{$selCat = .}}{{end}}
+        {{end}}
+        {{end}}
+        <div class="select-custom">
+            <button type="button" class="select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span class="select-value">{{catIcon $selCat.Nombre}}<span>{{$selCat.Nombre}}</span></span>
+                <svg class="select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <input type="hidden" name="categoria_id" value="{{$selCat.ID}}">
+            <ul class="select-list" role="listbox" aria-label="Categoría">
+                {{range .categorias}}
+                <li role="option" data-value="{{.ID}}" aria-selected="{{if eq .ID $selCat.ID}}true{{else}}false{{end}}">
+                    {{catIcon .Nombre}}<span>{{.Nombre}}</span>
+                </li>
+                {{end}}
+            </ul>
+        </div>
+        {{else}}
+        <p class="empty-state">No hay categorías disponibles</p>
+        {{end}}
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" name="fecha" required {{if .transaccion}}value="{{.transaccion.Fecha}}"{{end}}>
+        </div>
+        <div class="form-group">
+            <label>Medio de Pago</label>
+            <select name="medio_pago">
+                <option value="">Seleccionar</option>
+                <option value="efectivo" {{if and .transaccion (eq .transaccion.MedioPago "efectivo")}}selected{{end}}>Efectivo</option>
+                <option value="debito" {{if and .transaccion (eq .transaccion.MedioPago "debito")}}selected{{end}}>Débito</option>
+                <option value="credito" {{if and .transaccion (eq .transaccion.MedioPago "credito")}}selected{{end}}>Crédito</option>
+                <option value="transferencia" {{if and .transaccion (eq .transaccion.MedioPago "transferencia")}}selected{{end}}>Transferencia</option>
+            </select>
+        </div>
     </div>
     <div class="form-group">
         <label>Descripción</label>
         <input type="text" name="descripcion" {{if .transaccion}}value="{{.transaccion.Descripcion}}"{{end}}>
-    </div>
-    <div class="form-group">
-        <label>Medio de Pago</label>
-        <select name="medio_pago">
-            <option value="">Seleccionar</option>
-            <option value="efectivo" {{if and .transaccion (eq .transaccion.MedioPago "efectivo")}}selected{{end}}>Efectivo</option>
-            <option value="debito" {{if and .transaccion (eq .transaccion.MedioPago "debito")}}selected{{end}}>Débito</option>
-            <option value="credito" {{if and .transaccion (eq .transaccion.MedioPago "credito")}}selected{{end}}>Crédito</option>
-            <option value="transferencia" {{if and .transaccion (eq .transaccion.MedioPago "transferencia")}}selected{{end}}>Transferencia</option>
-        </select>
     </div>
     <div class="modal-actions">
         <button type="button" class="btn btn-outline" onclick="document.getElementById('form-modal').style.display='none'">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar</button>
     </div>
 </form>
+<script>
+(function(){
+    if (window.__selectCustomInit) return;
+    window.__selectCustomInit = true;
+    function closeAll() {
+        document.querySelectorAll('.select-custom.open').forEach(function(w) {
+            w.classList.remove('open');
+            var t = w.querySelector('.select-trigger');
+            if (t) t.setAttribute('aria-expanded', 'false');
+        });
+    }
+    document.addEventListener('click', function(evt) {
+        var trigger = evt.target.closest ? evt.target.closest('.select-trigger') : null;
+        if (trigger) {
+            var wrap = trigger.parentElement;
+            var wasOpen = wrap.classList.contains('open');
+            closeAll();
+            if (!wasOpen) {
+                wrap.classList.add('open');
+                trigger.setAttribute('aria-expanded', 'true');
+            }
+            return;
+        }
+        var opt = evt.target.closest ? evt.target.closest('.select-custom li[data-value]') : null;
+        if (opt) {
+            var w = opt.closest('.select-custom');
+            var input = w.querySelector('input[name="categoria_id"]');
+            if (input) input.value = opt.getAttribute('data-value');
+            var val = w.querySelector('.select-value');
+            if (val) val.innerHTML = opt.innerHTML;
+            w.querySelectorAll('li[data-value]').forEach(function(li) {
+                li.setAttribute('aria-selected', String(li === opt));
+            });
+            closeAll();
+            return;
+        }
+        closeAll();
+    });
+    document.addEventListener('keydown', function(evt) {
+        if (evt.key === 'Escape') closeAll();
+    });
+})();
+</script>
 {{end}}
