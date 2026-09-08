@@ -12,12 +12,10 @@ import (
 type MesService struct {
 	mesRepo         *repository.MesRepo
 	transaccionRepo *repository.TransaccionRepo
-	costoFijoRepo   *repository.CostoFijoRepo
-	deudaRepo       *repository.DeudaRepo
 }
 
-func NewMesService(mr *repository.MesRepo, tr *repository.TransaccionRepo, cfr *repository.CostoFijoRepo, dr *repository.DeudaRepo) *MesService {
-	return &MesService{mesRepo: mr, transaccionRepo: tr, costoFijoRepo: cfr, deudaRepo: dr}
+func NewMesService(mr *repository.MesRepo, tr *repository.TransaccionRepo) *MesService {
+	return &MesService{mesRepo: mr, transaccionRepo: tr}
 }
 
 func (s *MesService) List(ctx context.Context, usuarioID int64) ([]model.Mes, error) {
@@ -68,9 +66,6 @@ func (s *MesService) Cerrar(ctx context.Context, usuarioID, mesID int64) (*model
 	if err != nil {
 		return nil, err
 	}
-	if err := s.SyncFijosPeriodo(ctx, usuarioID, proximoPeriodo); err != nil {
-		return nil, err
-	}
 	proximoMes.Estado = "abierto"
 	_ = s.mesRepo.Update(ctx, proximoMes)
 	return mes, nil
@@ -105,21 +100,14 @@ func (s *MesService) Recalcular(ctx context.Context, usuarioID, mesID int64) (*m
 	return mes, nil
 }
 
-// calcularAcumulados deriva ahorro acumulado, pasivos y patrimonio a partir de
-// fuentes de datos en vivo: el superávit histórico de los meses cerrados
-// anteriores más el del período actual, y la suma de saldos de deudas.
+// calcularAcumulados deriva el ahorro acumulado en vivo: el superávit histórico
+// de los meses cerrados anteriores más el del período actual.
 func (s *MesService) calcularAcumulados(ctx context.Context, usuarioID int64, mes *model.Mes) error {
 	anterior, err := s.mesRepo.SumSuperavitAnterior(ctx, usuarioID, mes.Periodo)
 	if err != nil {
 		return err
 	}
 	mes.AhorroAcumulado = anterior + mes.Superavit
-	pasivos, err := s.deudaRepo.SumMontoTotal(ctx, usuarioID)
-	if err != nil {
-		return err
-	}
-	mes.PasivosTotal = pasivos
-	mes.Patrimonio = mes.AhorroAcumulado - mes.PasivosTotal
 	return nil
 }
 
@@ -143,24 +131,6 @@ func calcularTotales(transacciones []model.Transaccion) (ingresos, egresos float
 	return ingresos, egresos
 }
 
-// SyncFijosPeriodo materializa los costos fijos activos del usuario como
-// transacciones "pendientes" en el período indicado (idempotente). No toca
-// meses cerrados para preservar su inmutabilidad.
-func (s *MesService) SyncFijosPeriodo(ctx context.Context, usuarioID int64, periodo string) error {
-	mes, err := s.mesRepo.FindOrCreate(ctx, usuarioID, periodo)
-	if err != nil {
-		return err
-	}
-	if mes.Estado == "cerrado" {
-		return nil
-	}
-	fijos, err := s.costoFijoRepo.FindActivos(ctx, usuarioID)
-	if err != nil {
-		return err
-	}
-	return s.costoFijoRepo.CreateTransaccionesFromFijos(ctx, usuarioID, periodo, fijos)
-}
-
 // Balance devuelve el mes (por ID o el actual) con sus transacciones y los
 // totales recalculados sobre la marcha a partir de ellas, para que el balance
 // siempre refleje la realidad sin depender de los valores persistidos (que solo
@@ -174,9 +144,6 @@ func (s *MesService) Balance(ctx context.Context, usuarioID, mesID int64) (*mode
 		mes, err = s.mesRepo.FindOrCreate(ctx, usuarioID, time.Now().Format("2006-01"))
 	}
 	if err != nil {
-		return nil, nil, err
-	}
-	if err := s.SyncFijosPeriodo(ctx, usuarioID, mes.Periodo); err != nil {
 		return nil, nil, err
 	}
 	transacciones, err := s.transaccionRepo.FindByPeriodo(ctx, usuarioID, mes.Periodo)

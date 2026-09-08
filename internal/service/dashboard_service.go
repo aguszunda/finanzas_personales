@@ -13,11 +13,10 @@ type DashboardService struct {
 	mesRepo         *repository.MesRepo
 	transaccionRepo *repository.TransaccionRepo
 	categoriaRepo   *repository.CategoriaRepo
-	deudaRepo       *repository.DeudaRepo
 }
 
-func NewDashboardService(mr *repository.MesRepo, tr *repository.TransaccionRepo, cr *repository.CategoriaRepo, dr *repository.DeudaRepo) *DashboardService {
-	return &DashboardService{mesRepo: mr, transaccionRepo: tr, categoriaRepo: cr, deudaRepo: dr}
+func NewDashboardService(mr *repository.MesRepo, tr *repository.TransaccionRepo, cr *repository.CategoriaRepo) *DashboardService {
+	return &DashboardService{mesRepo: mr, transaccionRepo: tr, categoriaRepo: cr}
 }
 
 type DashboardData struct {
@@ -111,7 +110,7 @@ func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64, pe
 		}
 		gastosPorCat = append(gastosPorCat, cat)
 	}
-	// Feed unificado de "Últimos Movimientos": transacciones + deudas.
+	// Feed de "Últimos Movimientos": solo transacciones.
 	// Por defecto se muestran los últimos 10 días; si se filtra por mes, la
 	// ventana reemplaza los 10 días por el período completo.
 	desde, hasta := rango10Dias()
@@ -127,14 +126,7 @@ func (s *DashboardService) GetDashboard(ctx context.Context, usuarioID int64, pe
 	if err != nil {
 		return nil, err
 	}
-	deudasUltimos, err := s.deudaRepo.FindByRango(ctx, usuarioID, desde, hasta)
-	if err != nil {
-		return nil, err
-	}
-	movimientos, err := s.unirMovimientos(transaccionesUltimos, deudasUltimos)
-	if err != nil {
-		return nil, err
-	}
+	movimientos := s.unirMovimientos(transaccionesUltimos)
 	return &DashboardData{
 		MesActual:          mesActual,
 		MesAnterior:        mesAnterior,
@@ -162,11 +154,10 @@ func rango10Dias() (string, string) {
 	return desde.Format("2006-01-02"), hasta.Format("2006-01-02")
 }
 
-// unirMovimientos combina transacciones y deudas en un único feed ordenado
-// por fecha desc. Las deudas se muestran como movimientos con su monto total
-// y fecha de alta (created_at).
-func (s *DashboardService) unirMovimientos(transacciones []model.Transaccion, deudas []model.Deuda) ([]model.Movimiento, error) {
-	movimientos := make([]model.Movimiento, 0, len(transacciones)+len(deudas))
+// unirMovimientos convierte transacciones en movimientos del feed ordenados
+// por fecha desc.
+func (s *DashboardService) unirMovimientos(transacciones []model.Transaccion) []model.Movimiento {
+	movimientos := make([]model.Movimiento, 0, len(transacciones))
 	for _, t := range transacciones {
 		movimientos = append(movimientos, model.Movimiento{
 			ID:          t.ID,
@@ -179,18 +170,6 @@ func (s *DashboardService) unirMovimientos(transacciones []model.Transaccion, de
 			CreatedAt:   t.CreatedAt,
 		})
 	}
-	for _, d := range deudas {
-		movimientos = append(movimientos, model.Movimiento{
-			ID:          d.ID,
-			Origen:      "deuda",
-			Tipo:        "deuda",
-			Monto:       d.MontoTotal,
-			Fecha:       d.CreatedAt.Format("2006-01-02"),
-			Categoria:   d.Entidad,
-			Descripcion: d.Descripcion,
-			CreatedAt:   d.CreatedAt,
-		})
-	}
 	sort.SliceStable(movimientos, func(i, j int) bool {
 		if movimientos[i].Fecha != movimientos[j].Fecha {
 			return movimientos[i].Fecha > movimientos[j].Fecha
@@ -200,5 +179,5 @@ func (s *DashboardService) unirMovimientos(transacciones []model.Transaccion, de
 		}
 		return movimientos[i].CreatedAt.After(movimientos[j].CreatedAt)
 	})
-	return movimientos, nil
+	return movimientos
 }

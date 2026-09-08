@@ -70,9 +70,7 @@
             <tr>
                 <td>{{.Fecha}}</td>
                 <td>
-                    {{if eq .Origen "deuda"}}
-                    <span class="badge badge-deuda">💳 Deuda</span>
-                    {{else if eq .Tipo "ingreso"}}
+                    {{if eq .Tipo "ingreso"}}
                     <span class="badge badge-ingreso">💰 Ingreso</span>
                     {{else}}
                     <span class="badge badge-egreso">💸 Egreso</span>
@@ -80,8 +78,8 @@
                 </td>
                 <td>{{.Categoria}}</td>
                 <td>{{.Descripcion}}</td>
-                <td class="text-right" style="font-weight:600;color:{{if and (eq .Origen "transaccion") (eq .Tipo "ingreso")}}var(--success){{else}}var(--danger){{end}}">
-                    {{if and (eq .Origen "transaccion") (eq .Tipo "ingreso")}}+{{else}}-{{end}}$ {{printf "%.2f" .Monto}}
+                <td class="text-right" style="font-weight:600;color:{{if eq .Tipo "ingreso"}}var(--success){{else}}var(--danger){{end}}">
+                    {{if eq .Tipo "ingreso"}}+{{else}}-{{end}}$ {{printf "%.2f" .Monto}}
                 </td>
             </tr>
             {{end}}

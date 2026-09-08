@@ -24,9 +24,6 @@ type CreateTransaccionInput struct {
 	CategoriaID int64   `json:"categoria_id"`
 	Descripcion string  `json:"descripcion"`
 	MedioPago   string  `json:"medio_pago"`
-	EsFijo      bool    `json:"es_fijo"`
-	CuotasTotal *int    `json:"cuotas_total"`
-	CuotaActual *int    `json:"cuota_actual"`
 }
 
 func (s *TransaccionService) Create(ctx context.Context, usuarioID int64, input CreateTransaccionInput) (*model.Transaccion, error) {
@@ -55,9 +52,6 @@ func (s *TransaccionService) Create(ctx context.Context, usuarioID int64, input 
 		CategoriaID: input.CategoriaID,
 		Descripcion: input.Descripcion,
 		MedioPago:   input.MedioPago,
-		EsFijo:      input.EsFijo,
-		CuotasTotal: input.CuotasTotal,
-		CuotaActual: input.CuotaActual,
 		Estado:      "confirmado",
 		MesID:       &mes.ID,
 	}
@@ -104,9 +98,6 @@ func (s *TransaccionService) Update(ctx context.Context, usuarioID int64, id int
 	existing.CategoriaID = input.CategoriaID
 	existing.Descripcion = input.Descripcion
 	existing.MedioPago = input.MedioPago
-	existing.EsFijo = input.EsFijo
-	existing.CuotasTotal = input.CuotasTotal
-	existing.CuotaActual = input.CuotaActual
 	if err := s.transaccionRepo.Update(ctx, existing); err != nil {
 		return nil, err
 	}

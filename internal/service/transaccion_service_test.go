@@ -15,19 +15,19 @@ import (
 )
 
 const (
-	queryMesByPeriodo = `SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+	queryMesByPeriodo = `SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, created_at
 		 FROM meses WHERE usuario_id = ? AND periodo = ?`
 	queryMesFindOrCreate = `INSERT INTO meses (usuario_id, periodo, estado)
 		 VALUES (?, ?, 'abierto')
 		 ON DUPLICATE KEY UPDATE estado = VALUES(estado)`
-	queryMesByID = `SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+	queryMesByID = `SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, created_at
 		 FROM meses WHERE id = ? AND usuario_id = ?`
-	queryTransaccionInsert = `INSERT INTO transacciones (usuario_id, tipo, monto, fecha, categoria_id, descripcion, medio_pago, es_fijo, cuotas_total, cuota_actual, estado, mes_id)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
-	queryTransaccionByID = `SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.es_fijo, t.cuotas_total, t.cuota_actual, t.estado, t.mes_id, t.created_at, t.updated_at
+	queryTransaccionInsert = `INSERT INTO transacciones (usuario_id, tipo, monto, fecha, categoria_id, descripcion, medio_pago, estado, mes_id)
+		 VALUES (?,?,?,?,?,?,?,?,?)`
+	queryTransaccionByID = `SELECT t.id, t.usuario_id, t.tipo, t.monto, t.fecha, t.categoria_id, c.nombre, t.descripcion, t.medio_pago, t.estado, t.mes_id, t.created_at, t.updated_at
 		 FROM transacciones t JOIN categorias c ON c.id = t.categoria_id
 		 WHERE t.id = ? AND t.usuario_id = ?`
-	queryTransaccionUpdate = `UPDATE transacciones SET tipo=?, monto=?, fecha=?, categoria_id=?, descripcion=?, medio_pago=?, es_fijo=?, cuotas_total=?, cuota_actual=?, updated_at=NOW()
+	queryTransaccionUpdate = `UPDATE transacciones SET tipo=?, monto=?, fecha=?, categoria_id=?, descripcion=?, medio_pago=?, updated_at=NOW()
 		 WHERE id=? AND usuario_id=?`
 	queryTransaccionDelete = `DELETE FROM transacciones WHERE id=? AND usuario_id=?`
 )
@@ -44,8 +44,8 @@ func newTransaccionService(t *testing.T) (*TransaccionService, sqlmock.Sqlmock) 
 
 func mesRow(id int64, periodo, estado string) *sqlmock.Rows {
 	created := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
-	return sqlmock.NewRows([]string{"id", "usuario_id", "periodo", "estado", "ingresos_total", "egresos_total", "superavit", "tasa_ahorro", "ahorro_acumulado", "pasivos_total", "patrimonio", "created_at"}).
-		AddRow(id, 1, periodo, estado, 0, 0, 0, nil, 0, 0, 0, created)
+	return sqlmock.NewRows([]string{"id", "usuario_id", "periodo", "estado", "ingresos_total", "egresos_total", "superavit", "tasa_ahorro", "ahorro_acumulado", "created_at"}).
+		AddRow(id, 1, periodo, estado, 0, 0, 0, nil, 0, created)
 }
 
 func expectFindOrCreateAbierto(mock sqlmock.Sqlmock, usuarioID int64, periodo string, mesID int64) {
@@ -64,8 +64,8 @@ func expectFindOrCreateReturning(mock sqlmock.Sqlmock, usuarioID int64, periodo,
 
 func transaccionRow(id int64, tipo string, monto float64, fecha string, mesID int64) *sqlmock.Rows {
 	created := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
-	return sqlmock.NewRows([]string{"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "categoria", "descripcion", "medio_pago", "es_fijo", "cuotas_total", "cuota_actual", "estado", "mes_id", "created_at", "updated_at"}).
-		AddRow(id, 1, tipo, monto, created, 5, "Sueldo", "desc", "transferencia", false, nil, nil, "confirmado", mesID, created, created)
+	return sqlmock.NewRows([]string{"id", "usuario_id", "tipo", "monto", "fecha", "categoria_id", "categoria", "descripcion", "medio_pago", "estado", "mes_id", "created_at", "updated_at"}).
+		AddRow(id, 1, tipo, monto, created, 5, "Sueldo", "desc", "transferencia", "confirmado", mesID, created, created)
 }
 
 func expectTransaccionByID(mock sqlmock.Sqlmock, id, usuarioID int64, tipo string, monto float64, fecha string, mesID int64) {
@@ -77,7 +77,7 @@ func TestTransaccionService_Create_Valid(t *testing.T) {
 	svc, mock := newTransaccionService(t)
 	expectFindOrCreateAbierto(mock, 1, "2026-08", 9)
 	mock.ExpectExec(regexp.QuoteMeta(queryTransaccionInsert)).
-		WithArgs(1, "ingreso", 1000.0, "2026-08-10", int64(1), "Sueldo", "transferencia", false, nil, nil, "confirmado", int64(9)).
+		WithArgs(1, "ingreso", 1000.0, "2026-08-10", int64(1), "Sueldo", "transferencia", "confirmado", int64(9)).
 		WillReturnResult(sqlmock.NewResult(4, 1))
 
 	tx, err := svc.Create(context.Background(), 1, CreateTransaccionInput{
@@ -160,7 +160,7 @@ func TestTransaccionService_Update_Valid(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(queryMesByID)).
 		WithArgs(int64(9), int64(1)).WillReturnRows(mesRow(9, "2026-08", "abierto"))
 	mock.ExpectExec(regexp.QuoteMeta(queryTransaccionUpdate)).
-		WithArgs("egreso", 2000.0, "2026-08-10", int64(2), "nueva desc", "debito", false, nil, nil, int64(4), int64(1)).
+		WithArgs("egreso", 2000.0, "2026-08-10", int64(2), "nueva desc", "debito", int64(4), int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	tx, err := svc.Update(context.Background(), 1, 4, CreateTransaccionInput{

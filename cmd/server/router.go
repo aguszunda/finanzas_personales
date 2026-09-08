@@ -41,25 +41,19 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 	usuarioRepo := repository.NewUsuarioRepo(db)
 	categoriaRepo := repository.NewCategoriaRepo(db)
 	transaccionRepo := repository.NewTransaccionRepo(db)
-	costoFijoRepo := repository.NewCostoFijoRepo(db)
 	mesRepo := repository.NewMesRepo(db)
-	deudaRepo := repository.NewDeudaRepo(db)
 
 	authSvc := service.NewAuthService(usuarioRepo, []byte(cfg.JWTSecret), cfg.JWTExpiration, mailerFactory(cfg), cfg.AppBaseURL)
 	transSvc := service.NewTransaccionService(transaccionRepo, mesRepo)
-	cfSvc := service.NewCostoFijoService(costoFijoRepo, mesRepo)
-	mesSvc := service.NewMesService(mesRepo, transaccionRepo, costoFijoRepo, deudaRepo)
-	deudaSvc := service.NewDeudaService(deudaRepo, categoriaRepo, transSvc)
-	dashSvc := service.NewDashboardService(mesRepo, transaccionRepo, categoriaRepo, deudaRepo)
+	mesSvc := service.NewMesService(mesRepo, transaccionRepo)
+	dashSvc := service.NewDashboardService(mesRepo, transaccionRepo, categoriaRepo)
 
 	authH := handler.NewAuthHandler(authSvc)
 	transH := handler.NewTransaccionHandler(transSvc)
-	cfH := handler.NewCostoFijoHandler(cfSvc)
 	mesH := handler.NewMesHandler(mesSvc)
-	deudaH := handler.NewDeudaHandler(deudaSvc)
 	dashH := handler.NewDashboardHandler(dashSvc)
 	catH := handler.NewCategoriaHandler(categoriaRepo)
-	pagesH := handler.NewPagesHandler(dashSvc, transSvc, cfSvc, mesSvc, deudaSvc, categoriaRepo, authSvc)
+	pagesH := handler.NewPagesHandler(dashSvc, transSvc, mesSvc, categoriaRepo, authSvc)
 
 	r := chi.NewRouter()
 
@@ -120,15 +114,6 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 				r.Delete("/{id}", transH.Delete)
 			})
 
-			r.Route("/costos-fijos", func(r chi.Router) {
-				r.Get("/", cfH.List)
-				r.Post("/", cfH.Create)
-				r.Get("/{id}", cfH.GetByID)
-				r.Put("/{id}", cfH.Update)
-				r.Patch("/{id}/toggle", cfH.Toggle)
-				r.Delete("/{id}", cfH.Delete)
-			})
-
 			r.Route("/meses", func(r chi.Router) {
 				r.Get("/", mesH.List)
 				r.Get("/current", mesH.Current)
@@ -137,27 +122,14 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 				r.Post("/{id}/recalcular", mesH.Recalcular)
 			})
 
-			r.Route("/deudas", func(r chi.Router) {
-				r.Get("/", deudaH.List)
-				r.Post("/", deudaH.Create)
-				r.Get("/form", pagesH.DeudaForm)
-				r.Get("/{id}", deudaH.GetByID)
-				r.Put("/{id}", deudaH.Update)
-				r.Delete("/{id}", deudaH.Delete)
-				r.Get("/{id}/pagar/form", pagesH.DeudaPagoForm)
-				r.Post("/{id}/pagar", deudaH.MarcarPagada)
-			})
-
 			r.Get("/dashboard", dashH.GetDashboard)
 			r.Get("/categorias", catH.List)
 
 			r.Get("/dashboard/page", pagesH.DashboardPage)
 			r.Get("/transacciones/page", pagesH.TransaccionesPage)
-			r.Get("/costos-fijos/page", pagesH.CostosFijosPage)
 			r.Get("/balance/page", pagesH.BalancePage)
 			r.Get("/balance/{id}/page", pagesH.BalancePage)
 			r.Get("/meses/page", pagesH.MesesPage)
-			r.Get("/deudas/page", pagesH.DeudasPage)
 
 			r.Get("/profile/page", authH.ProfilePage)
 			r.Get("/profile/password/page", authH.ChangePasswordPage)

@@ -1,5 +1,12 @@
 # Análisis: App de Control de Costos Personales / Pymes
 
+> **Alcance de la versión implementada (v1):** el producto actual cubre los
+> conceptos de ingresos, egresos, superávit, ahorro acumulado y balance mensual.
+> Las features de **costos fijos con precarga automática**, **deudas / tarjetas**
+> y el cálculo de **pasivos / patrimonio** quedaron **fuera de alcance** (se
+> eliminaron del código y del esquema en la migración 008). Los gastos
+> recurrentes y las cuotas se registran como transacciones de egreso normales.
+
 ## Perfil: Asesor Financiero Experto
 
 ---
@@ -20,19 +27,18 @@ Personas y pequeños negocios no tienen visibilidad real de a dónde se va su di
 |----------------|-------------------|------------|
 | "Lo que gané" | **Ingresos** | Todo el dinero que entra (sueldo, freelance, ventas, honorarios) |
 | "Lo que gasté" | **Egresos / Costos** | Todo el dinero que sale, categorizado |
-| "Plata fija que siempre pago" | **Costos Fijos** | Alquiler, servicios, suscripciones, cuotas fijas |
 | "Gastos variables" | **Costos Variables** | Comida, salidas, compras no planificadas |
 | "Lo que me queda" | **Superávit / Resultado Neto** | Ingresos - Egresos |
 | "Lo que ahorré" | **Ahorro** | Dinero reservado, no gastado. Puede estar en una meta específica |
 | "Lo que invertí" | **Inversión** | Dinero puesto a trabajar (plazos fijos, cedears, crypto, etc.) |
-| "Mi deuda" | **Pasivos** | Tarjetas de crédito, préstamos, cuotas pendientes |
-| "Lo que tengo" | **Patrimonio** | Activos - Pasivos. Lo que realmente valgo hoy |
 | "Presupuesto" | **Presupuesto / Techo** | Límite que me autoimpongo por categoría |
+
+> Deudas / tarjetas (pasivos) y patrimonio quedaron **fuera de alcance** en v1
+> (ver nota al inicio).
 
 ### Reglas de negocio fundamentales
 
 ```
-Patrimonio = Activos - Pasivos (instantáneo)
 Resultado Neto = Ingresos - Egresos (período)
 Tasa de Ahorro = Ahorro / Ingresos (objetivo: >15%)
 Cobertura de Gastos = Ahorro Total / Gastos Mensuales (meses de reserva)
@@ -83,13 +89,9 @@ Cobertura de Gastos = Ahorro Total / Gastos Mensuales (meses de reserva)
 - Importar transacciones desde CSV de banco/billetera
 - CRUD completo (crear, editar, eliminar con confirmación)
 
-#### 4.3 Costos Fijos vs Variables
-- Cada egreso se marca como **fijo** (se repite automáticamente) o **variable**
-- Costos fijos: permiten configurar:
-  - Día de vencimiento (ej: el 5 de cada mes)
-  - Monto fijo o variable (ej: luz puede variar)
-  - Activo/inactivo
-- El sistema al iniciar un nuevo mes precarga los costos fijos activos pendientes
+#### 4.3 Egresos recurrentes (descopado en v1: costos fijos)
+- La versión original del análisis contemplaba **costos fijos** (gasto que se repite automáticamente con día de vencimiento y precarga al iniciar un mes).
+- **Decisión de producto (v1):** quedó **fuera de alcance** (migración 008). Los gastos recurrentes (alquiler, servicios, suscripciones) se registran como transacciones de egreso normales, con la categoría correspondiente.
 
 #### 4.4 Balance Mensual (Imprimible)
 - Generación automática al cerrar el mes (o manual)
@@ -103,22 +105,16 @@ Cobertura de Gastos = Ahorro Total / Gastos Mensuales (meses de reserva)
   │    Freelance                 $ 200  │
   │                                   │
   │  EGRESOS                     $ 700  │
-  │    Costos Fijos              $ 500  │
-  │      Alquiler                $ 300  │
-  │      Servicios               $ 100  │
-  │      Suscripciones           $ 100  │
-  │    Costos Variables           $ 200  │
-  │      Comida                  $ 120  │
-  │      Transporte              $ 50   │
-  │      Entretenimiento         $ 30   │
+  │    Alquiler                  $ 300  │
+  │    Servicios                 $ 100  │
+  │    Comida                    $ 120  │
+  │    Transporte                $ 50   │
+  │    Entretenimiento           $ 30   │
   │                                   │
   │  RESULTADO NETO              $ 300  │  ← positivo = superávit
-  │  TASA DE AHORRO              30%   │
+  │  TASA DE AHORRO             30%    │
   │                                   │
   │  AHORRO ACUMULADO            $ 5000 │
-  │  INVERSIONES                 $ 2000 │
-  │  DEUDAS (TC, préstamos)      $ 500  │
-  │  PATRIMONIO NETO             $ 6500 │
   └─────────────────────────────────────┘
   ```
 - Diseñado para impresión: versión HTML con CSS `@media print`, sin colores de fondo, sin botones, paginación limpia
@@ -146,11 +142,9 @@ Cobertura de Gastos = Ahorro Total / Gastos Mensuales (meses de reserva)
 - Barra de progreso, alerta al superar 80% y 100%
 - Ayuda a controlar gastos variables
 
-#### 4.8 Gestión de Deudas / Tarjetas de Crédito
-- Registrar tarjetas (límite, fecha de cierre, fecha de pago)
-- Agregar consumos en cuotas
-- Calculadora: cuánto pagar este mes para minimizar intereses
-- Alerta de vencimientos
+#### 4.8 Gestión de Deudas / Tarjetas (descopado en v1)
+- La versión original del análisis contemplaba: registrar tarjetas (límite, cierre, pago), consumos en cuotas, calculadora de intereses y alertas de vencimiento.
+- **Decisión de producto (v1):** quedó **fuera de alcance** (migración 008). Las cuotas se registran como transacciones de egreso normales; no hay módulo de deudas/pasivos.
 
 #### 4.9 Reportes y Exportación
 - Balance anual (ingresos vs egresos mes a mes)
@@ -180,9 +174,8 @@ Cobertura de Gastos = Ahorro Total / Gastos Mensuales (meses de reserva)
 ### 5.1 Cierre Mensual
 - El mes se "cierra" automáticamente al primer día del mes siguiente
 - Durante el cierre:
-  1. Se copian los costos fijos activos al nuevo mes como transacciones pendientes (con monto estimado)
-  2. Se genera el balance del mes cerrado (inmutable)
-  3. Se calculan indicadores (tasa de ahorro, variación vs mes anterior)
+  1. Se genera el balance del mes cerrado (inmutable)
+  2. Se calculan indicadores (tasa de ahorro, ahorro acumulado, variación vs mes anterior)
 - El usuario puede cerrar manualmente antes (ej: 28 de enero)
 - Balance cerrado = no se puede modificar (solo lectura). Si se necesita corregir, se crea un ajuste en el mes actual.
 
@@ -199,7 +192,6 @@ Cobertura de Gastos = Ahorro Total / Gastos Mensuales (meses de reserva)
 ### 5.4 Indicadores Clave
 ```
 Tasa de Ahorro (%)     = Superávit / Ingresos * 100
-Gastos Fijos Ratio (%) = Gastos Fijos / Ingresos * 100
 Cobertura (meses)      = Ahorro Total / Gastos Mensuales Promedio
 Variación Mensual (%)  = (MesActual - MesAnterior) / MesAnterior * 100
 ```
@@ -214,14 +206,8 @@ Usuario
 
 Transaccion
   id, usuario_id, tipo (ingreso|egreso), monto, fecha, categoria_id,
-  subcategoria_id, descripcion, medio_pago, es_fijo, cuotas_total,
-  cuota_actual, estado (pendiente|confirmado|ajuste),
-  mes_id (nullable), created_at, updated_at
-
-CostoFijo
-  id, usuario_id, categoria_id, descripcion, monto_estimado,
-  dia_vencimiento, activo, tipo_periodo (mensual|bimestral|anual),
-  created_at
+  subcategoria_id, descripcion, medio_pago,
+  estado (confirmado|ajuste), mes_id (nullable), created_at, updated_at
 
 Categoria
   id, nombre, tipo (ingreso|egreso), icono, es_personalizada,
@@ -233,7 +219,7 @@ Subcategoria
 Mes
   id, usuario_id, periodo (YYYY-MM), estado (abierto|cerrado),
   ingresos_total, egresos_total, superavit, tasa_ahorro,
-  ahorro_acumulado, pasivos_total, patrimonio, created_at
+  ahorro_acumulado, created_at
 
 MetaAhorro
   id, usuario_id, nombre, monto_objetivo, monto_actual,
@@ -242,15 +228,15 @@ MetaAhorro
 Presupuesto
   id, usuario_id, categoria_id, mes_id, monto_limite, created_at
 
-Deuda / Tarjeta
-  id, usuario_id, tipo (tarjeta|prestamo|otro), entidad,
-  monto_total, cuotas_restantes, tasa_interes, fecha_cierre,
-  fecha_pago, created_at
-
 Inversion
   id, usuario_id, tipo_instrumento, monto_invertido,
   valor_actual, rentabilidad, created_at
 ```
+
+> Entidades removidas en la migración 008 (v1): `CostoFijo` (precarga de
+> egresos recurrentes) y `Deuda / Tarjeta` (pasivos), junto con las columnas
+> `transacciones.es_fijo/cuotas_*` y `meses.pasivos_total/patrimonio`. Las
+> cuotas y los gastos recurrentes se registran como egresos normales.
 
 ---
 
@@ -263,7 +249,6 @@ Login → Dashboard (mes actual)
          ├── Ver balance del mes
          │     └── Imprimir / PDF
          ├── Agregar transacción rápida (desde cualquier pantalla)
-         ├── Ver/Categorizar costos fijos
          ├── Comparar con mes anterior
          └── Configurar presupuestos
 ```
@@ -308,12 +293,11 @@ Login → Dashboard (mes actual)
 |---------|-------------------|
 | Superávit | Ingresos - Egresos del período. Puede ser negativo (déficit) |
 | Ahorro | Dinero acumulado de períodos anteriores, disponible en cuentas/efectivo |
+| Ahorro acumulado | Ahorro del mes anterior + superávit del mes actual |
 | Tasa de ahorro | Porcentaje del ingreso que se ahorra. Saludable >15%, ideal >25% |
-| Costo fijo | Egreso recurrente predecible (alquiler, internet, suscripción) |
 | Costo variable | Egreso no predecible (comida, entretenimiento) |
-| Patrimonio | Todo lo que tiene (activos) menos todo lo que debe (pasivos) |
 | Balance | Estado financiero de un período específico (mensual) |
-| Cierre de mes | Proceso que congela el mes e inicia el siguiente con costos fijos |
+| Cierre de mes | Proceso que congela el mes e inicia el siguiente |
 | Ajuste | Transacción de corrección en un mes cerrado |
 | Cobertura | Meses que podría vivir sin ingresos usando su ahorro actual |
 | Presupuesto | Límite autoimpuesto por categoría para controlar gastos |
@@ -327,8 +311,10 @@ Login → Dashboard (mes actual)
 3. **Crear estructura del proyecto Go** (cmd/server, internal/handler, etc.)
 4. **Implementar autenticación + transacciones + dashboard** (núcleo)
 5. **Implementar balance imprimible** (con CSS print)
-6. **Implementar costos fijos y precarga mensual**
-7. **Testing y deploy**
+6. **Testing y deploy**
+
+> Nota: los costos fijos con precarga automática quedaron **fuera de alcance**
+> en v1 (ver nota al inicio); se reincorporarían como una feature futura.
 
 ---
 

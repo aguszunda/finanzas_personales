@@ -18,7 +18,7 @@ func NewMesRepo(db *sql.DB) *MesRepo {
 
 func (r *MesRepo) FindByUsuarioID(ctx context.Context, usuarioID int64) ([]model.Mes, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+		`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, created_at
 		 FROM meses WHERE usuario_id = ? ORDER BY periodo DESC`, usuarioID)
 	if err != nil {
 		return nil, err
@@ -30,9 +30,9 @@ func (r *MesRepo) FindByUsuarioID(ctx context.Context, usuarioID int64) ([]model
 func (r *MesRepo) FindByID(ctx context.Context, id, usuarioID int64) (*model.Mes, error) {
 	m := &model.Mes{}
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+		`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, created_at
 		 FROM meses WHERE id = ? AND usuario_id = ?`, id, usuarioID,
-	).Scan(&m.ID, &m.UsuarioID, &m.Periodo, &m.Estado, &m.IngresosTotal, &m.EgresosTotal, &m.Superavit, &m.TasaAhorro, &m.AhorroAcumulado, &m.PasivosTotal, &m.Patrimonio, &m.CreatedAt)
+	).Scan(&m.ID, &m.UsuarioID, &m.Periodo, &m.Estado, &m.IngresosTotal, &m.EgresosTotal, &m.Superavit, &m.TasaAhorro, &m.AhorroAcumulado, &m.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrNotFound
@@ -45,9 +45,9 @@ func (r *MesRepo) FindByID(ctx context.Context, id, usuarioID int64) (*model.Mes
 func (r *MesRepo) FindByPeriodo(ctx context.Context, usuarioID int64, periodo string) (*model.Mes, error) {
 	m := &model.Mes{}
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, pasivos_total, patrimonio, created_at
+		`SELECT id, usuario_id, periodo, estado, ingresos_total, egresos_total, superavit, tasa_ahorro, ahorro_acumulado, created_at
 		 FROM meses WHERE usuario_id = ? AND periodo = ?`, usuarioID, periodo,
-	).Scan(&m.ID, &m.UsuarioID, &m.Periodo, &m.Estado, &m.IngresosTotal, &m.EgresosTotal, &m.Superavit, &m.TasaAhorro, &m.AhorroAcumulado, &m.PasivosTotal, &m.Patrimonio, &m.CreatedAt)
+	).Scan(&m.ID, &m.UsuarioID, &m.Periodo, &m.Estado, &m.IngresosTotal, &m.EgresosTotal, &m.Superavit, &m.TasaAhorro, &m.AhorroAcumulado, &m.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrNotFound
@@ -79,9 +79,9 @@ func (r *MesRepo) FindOrCreate(ctx context.Context, usuarioID int64, periodo str
 
 func (r *MesRepo) Update(ctx context.Context, m *model.Mes) error {
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE meses SET estado=?, ingresos_total=?, egresos_total=?, superavit=?, tasa_ahorro=?, ahorro_acumulado=?, pasivos_total=?, patrimonio=?
+		`UPDATE meses SET estado=?, ingresos_total=?, egresos_total=?, superavit=?, tasa_ahorro=?, ahorro_acumulado=?
 		 WHERE id=? AND usuario_id=?`,
-		m.Estado, m.IngresosTotal, m.EgresosTotal, m.Superavit, m.TasaAhorro, m.AhorroAcumulado, m.PasivosTotal, m.Patrimonio, m.ID, m.UsuarioID)
+		m.Estado, m.IngresosTotal, m.EgresosTotal, m.Superavit, m.TasaAhorro, m.AhorroAcumulado, m.ID, m.UsuarioID)
 	return err
 }
 
@@ -121,7 +121,7 @@ func scanMeses(rows *sql.Rows) ([]model.Mes, error) {
 	var ms []model.Mes
 	for rows.Next() {
 		var m model.Mes
-		if err := rows.Scan(&m.ID, &m.UsuarioID, &m.Periodo, &m.Estado, &m.IngresosTotal, &m.EgresosTotal, &m.Superavit, &m.TasaAhorro, &m.AhorroAcumulado, &m.PasivosTotal, &m.Patrimonio, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.UsuarioID, &m.Periodo, &m.Estado, &m.IngresosTotal, &m.EgresosTotal, &m.Superavit, &m.TasaAhorro, &m.AhorroAcumulado, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		ms = append(ms, m)
