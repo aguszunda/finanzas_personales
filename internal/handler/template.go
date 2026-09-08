@@ -77,6 +77,8 @@ var catIcons = map[string]template.HTML{
 }
 
 func svgIcon(inner string) template.HTML {
+	// #nosec G203 -- trazados SVG literales fijos (constantes de catIcons),
+	// sin datos de runtime ni entrada del usuario: markup de confianza.
 	return template.HTML(`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` + inner + `</svg>`)
 }
 

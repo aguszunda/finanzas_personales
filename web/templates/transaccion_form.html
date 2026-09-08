@@ -99,8 +99,7 @@
             var w = opt.closest('.select-custom');
             var input = w.querySelector('input[name="categoria_id"]');
             if (input) input.value = opt.getAttribute('data-value');
-            var val = w.querySelector('.select-value');
-            if (val) val.innerHTML = opt.innerHTML;
+            actualizarTrigger(opt);
             w.querySelectorAll('li[data-value]').forEach(function(li) {
                 li.setAttribute('aria-selected', String(li === opt));
             });
@@ -109,6 +108,15 @@
         }
         closeAll();
     });
+    function actualizarTrigger(opt) {
+        var val = opt.closest('.select-custom').querySelector('.select-value');
+        if (!val) return;
+        val.textContent = '';
+        var icon = opt.querySelector('svg');
+        if (icon) val.appendChild(icon.cloneNode(true));
+        var nombre = opt.querySelector('span');
+        if (nombre) val.appendChild(document.createTextNode(nombre.textContent));
+    }
     document.addEventListener('keydown', function(evt) {
         if (evt.key === 'Escape') closeAll();
     });
