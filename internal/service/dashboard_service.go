@@ -176,6 +176,7 @@ func (s *DashboardService) unirMovimientos(transacciones []model.Transaccion) []
 			Fecha:       t.Fecha,
 			Categoria:   t.Categoria,
 			Descripcion: t.Descripcion,
+			MedioPago:   t.MedioPago,
 			CreatedAt:   t.CreatedAt,
 		})
 	}

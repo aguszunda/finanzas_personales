@@ -85,6 +85,7 @@ type Movimiento struct {
 	Fecha       string    `json:"fecha"`
 	Categoria   string    `json:"categoria_nombre,omitempty"`
 	Descripcion string    `json:"descripcion"`
+	MedioPago   string    `json:"medio_pago,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
