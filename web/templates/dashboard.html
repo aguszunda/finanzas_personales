@@ -2,8 +2,8 @@
 {{if .error}}
 <div class="alert alert-error">{{.error}}</div>
 {{else}}
-<div class="card" style="display:flex;justify-content:space-between;align-items:center">
-    <h2>📊 Resumen General <small style="color:var(--text-secondary)">{{.d.MesActual.Periodo}}</small></h2>
+<div class="card" style="display:flex;justify-content:space-between;align-items:center;border:none;background:none;">
+    <h2>🏠 Resumen General <small style="color:var(--text-secondary)">{{.d.MesActual.Periodo}}</small></h2>
 </div>
 <div class="card">
     <div class="label" style="color:var(--text-secondary);margin-bottom:0.25rem">Resumen de Liquidez</div>
@@ -17,7 +17,7 @@
 
 <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start">
 <div class="card" style="flex:1;min-width:300px">
-    <h3 style="margin-bottom:0.5rem">Composición de ingresos total</h3>
+    <h3 style="margin-bottom:0.5rem">Composición de ingresos</h3>
     {{if .d.IngresosPorCategoria}}
     <div style="max-width:400px;margin:0 auto">
         <canvas id="chart-ingresos" style="max-height:280px"></canvas>
@@ -28,7 +28,7 @@
 </div>
 
 <div class="card" style="flex:1;min-width:300px">
-    <h3 style="margin-bottom:0.5rem">Composición de los Egresos total</h3>
+    <h3 style="margin-bottom:0.5rem">Composición de los Egresos</h3>
     {{if .d.EgresosPorCategoria}}
     <div style="max-width:400px;margin:0 auto">
         <canvas id="chart-egresos" style="max-height:280px"></canvas>

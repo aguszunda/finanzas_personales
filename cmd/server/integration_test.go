@@ -966,7 +966,7 @@ func TestPages_Render(t *testing.T) {
 		path    string
 		markers []string
 	}{
-		{"/api/dashboard/page", []string{"Resumen General", "Resumen de Liquidez", "Últimos Movimientos", "Últimos 10 días"}},
+		{"/api/dashboard/page", []string{"Inicio", "Resumen de Liquidez", "Últimos Movimientos", "Últimos 10 días"}},
 		{"/api/transacciones/page", []string{"Transacciones", "Todos", `value="` + periodoActual + `"`}},
 		{"/api/balance/page", []string{"Balance", "RESULTADO NETO", "$ 50000.00", "$ 10000.00", "$ 40000.00", "Ahorro Acumulado"}},
 		{"/api/meses/page", []string{"Meses", periodoActual}},
