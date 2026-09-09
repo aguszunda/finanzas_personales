@@ -126,7 +126,6 @@ func buildRouter(cfg *config.Config, db *sql.DB) http.Handler {
 			r.Get("/categorias", catH.List)
 
 			r.Get("/dashboard/page", pagesH.DashboardPage)
-			r.Get("/transacciones/page", pagesH.TransaccionesPage)
 			r.Get("/balance/page", pagesH.BalancePage)
 			r.Get("/balance/{id}/page", pagesH.BalancePage)
 			r.Get("/meses/page", pagesH.MesesPage)

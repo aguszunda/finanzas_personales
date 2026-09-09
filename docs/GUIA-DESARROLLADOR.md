@@ -186,8 +186,8 @@ Tomemos como ejemplo "crear una transacción" desde la UI (formulario HTMX):
     verifica que el mes no esté cerrado, arma el struct
  8. el service llama transaccionRepo.Create(t) → INSERT en MySQL
  9. vuelve al handler: respondMutation → como es HTMX, responde
-    con header "HX-Redirect: /api/transacciones/page"
-10. HTMX navega a esa página y se muestra la lista actualizada
+    con header "HX-Redirect: /api/dashboard/page"
+10. HTMX navega al dashboard y se muestra la lista actualizada
 ```
 
 **Diagrama visual:**
