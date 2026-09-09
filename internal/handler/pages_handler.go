@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"optipay/internal/middleware"
-	"optipay/internal/model"
 	"optipay/internal/repository"
 	"optipay/internal/service"
 
@@ -92,34 +91,6 @@ func (h *PagesHandler) DashboardPage(w http.ResponseWriter, r *http.Request) {
 		"meses":    meses,
 		"periodo":  periodo,
 		"userName": h.userName(r),
-	})
-}
-
-func (h *PagesHandler) TransaccionesPage(w http.ResponseWriter, r *http.Request) {
-	uid := middleware.UserIDFromContext(r.Context())
-	periodo := r.URL.Query().Get("periodo")
-	if periodo == "" {
-		periodo = "all"
-	}
-	var transacciones []model.Transaccion
-	var err error
-	if periodo == "all" {
-		transacciones, err = h.transSvc.List(r.Context(), uid, 100, 0)
-	} else {
-		transacciones, err = h.transSvc.ListByPeriodo(r.Context(), uid, periodo)
-	}
-	if err != nil {
-		renderTemplate(w, "transacciones", map[string]interface{}{"error": err.Error(), "userName": h.userName(r)})
-		return
-	}
-	cats, _ := h.catRepo.FindAll(r.Context(), uid)
-	meses, _ := h.mesSvc.List(r.Context(), uid)
-	renderTemplate(w, "transacciones", map[string]interface{}{
-		"transacciones": transacciones,
-		"categorias":    cats,
-		"meses":         meses,
-		"periodo":       periodo,
-		"userName":      h.userName(r),
 	})
 }
 

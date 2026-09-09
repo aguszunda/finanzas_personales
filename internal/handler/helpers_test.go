@@ -105,12 +105,12 @@ func TestRespondMutation_HTMX(t *testing.T) {
 	r.Header.Set("HX-Request", "true")
 	ctx := context.WithValue(r.Context(), middleware.IsHTMXKey, true)
 	rec := httptest.NewRecorder()
-	respondMutation(rec, r.WithContext(ctx), http.StatusCreated, map[string]string{"ok": "1"}, "/api/transacciones/page")
+	respondMutation(rec, r.WithContext(ctx), http.StatusCreated, map[string]string{"ok": "1"}, "/api/dashboard/page")
 
 	if rec.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d", rec.Code)
 	}
-	if rec.Header().Get("HX-Redirect") != "/api/transacciones/page" {
+	if rec.Header().Get("HX-Redirect") != "/api/dashboard/page" {
 		t.Errorf("missing HX-Redirect: %q", rec.Header().Get("HX-Redirect"))
 	}
 	if rec.Body.Len() != 0 {
@@ -121,11 +121,11 @@ func TestRespondMutation_HTMX(t *testing.T) {
 func TestRespondMutation_Form(t *testing.T) {
 	r := formRequest(t, "x=1")
 	rec := httptest.NewRecorder()
-	respondMutation(rec, r, http.StatusCreated, map[string]string{"ok": "1"}, "/api/transacciones/page")
+	respondMutation(rec, r, http.StatusCreated, map[string]string{"ok": "1"}, "/api/dashboard/page")
 	if rec.Code != http.StatusSeeOther {
 		t.Errorf("expected 303, got %d", rec.Code)
 	}
-	if rec.Header().Get("Location") != "/api/transacciones/page" {
+	if rec.Header().Get("Location") != "/api/dashboard/page" {
 		t.Errorf("unexpected Location: %q", rec.Header().Get("Location"))
 	}
 }
@@ -134,7 +134,7 @@ func TestRespondMutation_JSON(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
 	r.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	respondMutation(rec, r, http.StatusCreated, map[string]string{"ok": "1"}, "/api/transacciones/page")
+	respondMutation(rec, r, http.StatusCreated, map[string]string{"ok": "1"}, "/api/dashboard/page")
 	if rec.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d", rec.Code)
 	}

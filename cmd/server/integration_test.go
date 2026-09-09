@@ -669,7 +669,6 @@ func TestProtectedRoutes_RequireToken(t *testing.T) {
 		"/api/dashboard",
 		"/api/categorias",
 		"/api/dashboard/page",
-		"/api/transacciones/page",
 		"/api/balance/page",
 	}
 	for _, p := range paths {
@@ -752,7 +751,7 @@ func TestTransacciones_HTMXCreateRedirects(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d (%s)", rec.Code, rec.Body.String())
 	}
-	if rec.Header().Get("HX-Redirect") != "/api/transacciones/page" {
+	if rec.Header().Get("HX-Redirect") != "/api/dashboard/page" {
 		t.Errorf("unexpected HX-Redirect: %q", rec.Header().Get("HX-Redirect"))
 	}
 }
@@ -967,7 +966,6 @@ func TestPages_Render(t *testing.T) {
 		markers []string
 	}{
 		{"/api/dashboard/page", []string{"Inicio", "Resumen de Liquidez", "Últimos Movimientos", "Últimos 10 días"}},
-		{"/api/transacciones/page", []string{"Transacciones", "Todos", `value="` + periodoActual + `"`}},
 		{"/api/balance/page", []string{"Balance", "RESULTADO NETO", "$ 50000.00", "$ 10000.00", "$ 40000.00", "Ahorro Acumulado"}},
 		{"/api/meses/page", []string{"Meses", periodoActual}},
 	}

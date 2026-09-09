@@ -237,7 +237,6 @@ curl -s "http://localhost:8080/api/dashboard?periodo=2026-07" -H "Authorization:
 |------|-----------|
 | `/login` · `/register` | Formularios de autenticación |
 | `/api/dashboard/page` | Balance General (con `?periodo=YYYY-MM`, default últimos 10 días) |
-| `/api/transacciones/page` | CRUD transacciones (`?periodo=YYYY-MM`, default `all`) |
 | `/api/meses/page` | Lista de meses |
 | `/api/balance/page` | Balance del mes actual (imprimible) |
 | `/api/balance/{id}/page` | Balance de mes específico |

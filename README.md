@@ -51,7 +51,6 @@ Administracion_financiera/
 │       ├── login.html
 │       ├── register.html
 │       ├── dashboard.html
-│       ├── transacciones.html
 │       ├── balance.html
 │       ├── meses.html
 ├── migrations/
@@ -113,7 +112,6 @@ RequestID → Recoverer → Logging → CORS → DetectHTMX → Timeout
 | POST | `/api/meses/{id}/recalcular` | Recalcular indicadores |
 | GET | `/api/dashboard` | Métricas JSON del dashboard |
 | GET | `/api/dashboard/page` | Dashboard HTML |
-| GET | `/api/transacciones/page` | Transacciones HTML |
 | GET | `/api/balance/page`, `/api/balance/{id}/page` | Balance imprimible |
 | GET | `/api/meses/page` | Meses HTML |
 
@@ -319,7 +317,6 @@ Desde el navegador entrá a `http://localhost:8080/` (redirige a `/login`). Cre�
 ```bash
 open "http://localhost:8080/"                          # Redirige a /login
 open "http://localhost:8080/api/dashboard/page"        # Dashboard
-open "http://localhost:8080/api/transacciones/page"    # Transacciones
 open "http://localhost:8080/api/meses/page"            # Meses
 open "http://localhost:8080/api/balance/page"          # Balance (Ctrl+P para PDF)
 open "http://localhost:8080/api/balance/1/page"        # Balance de un mes específico

@@ -40,7 +40,6 @@ func installTestTemplates(t *testing.T, pages map[string]string) {
 
 var pageTemplates = map[string]string{
 	"dashboard":        `{{define "content"}}<div>dash user={{.userName}}</div>{{end}}`,
-	"transacciones":    `{{define "content"}}<div>trans user={{.userName}} periodo={{.periodo}}</div>{{end}}`,
 	"meses":            `{{define "content"}}<div>meses user={{.userName}}</div>{{end}}`,
 	"balance":          `{{define "content"}}<div>balance user={{.userName}}</div>{{end}}`,
 	"transaccion_form": `{{define "transaccion_form"}}<div>transaccion_form</div>{{end}}`,
@@ -131,75 +130,6 @@ func TestDashboardPage_Error(t *testing.T) {
 	req := httptest.NewRequest("GET", "/dashboard", nil).WithContext(ctxWithUserID(0))
 	rec := httptest.NewRecorder()
 	f.pagesH.DashboardPage(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 even on error, got %d", rec.Code)
-	}
-}
-
-func TestTransaccionesPage_All(t *testing.T) {
-	f := newHandlerFixture(t)
-	installTestTemplates(t, map[string]string{"transacciones": pageTemplates["transacciones"]})
-
-	f.mock.ExpectQuery(regexp.QuoteMeta(qTransFindByUsuarioID)).
-		WithArgs(int64(0), 100, 0).
-		WillReturnRows(transRow(1, "ingreso", 1000, 9))
-	f.mock.ExpectQuery(regexp.QuoteMeta(qCatFindAll)).
-		WithArgs(int64(0)).
-		WillReturnRows(catRow(1, "Sueldo", "ingreso"))
-	f.mock.ExpectQuery(regexp.QuoteMeta(qMesFindByUsuarioID)).
-		WithArgs(int64(0)).
-		WillReturnRows(mesRows(9, "2026-08", "abierto"))
-
-	req := httptest.NewRequest("GET", "/transacciones", nil).WithContext(ctxWithUserID(0))
-	rec := httptest.NewRecorder()
-	f.pagesH.TransaccionesPage(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	if !strings.Contains(rec.Body.String(), "periodo=all") {
-		t.Errorf("expected periodo=all, body: %s", rec.Body.String())
-	}
-}
-
-func TestTransaccionesPage_Periodo(t *testing.T) {
-	f := newHandlerFixture(t)
-	installTestTemplates(t, map[string]string{"transacciones": pageTemplates["transacciones"]})
-
-	f.mock.ExpectQuery(regexp.QuoteMeta(qTransFindByPeriodo)).
-		WithArgs(int64(0), "2026-08-01", "2026-08-31").
-		WillReturnRows(transRow(1, "egreso", 500, 9))
-	f.mock.ExpectQuery(regexp.QuoteMeta(qCatFindAll)).
-		WithArgs(int64(0)).
-		WillReturnRows(catRow(1, "Sueldo", "ingreso"))
-	f.mock.ExpectQuery(regexp.QuoteMeta(qMesFindByUsuarioID)).
-		WithArgs(int64(0)).
-		WillReturnRows(mesRows(9, "2026-08", "abierto"))
-
-	req := httptest.NewRequest("GET", "/transacciones?periodo=2026-08", nil).WithContext(ctxWithUserID(0))
-	rec := httptest.NewRecorder()
-	f.pagesH.TransaccionesPage(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	if !strings.Contains(rec.Body.String(), "periodo=2026-08") {
-		t.Errorf("expected periodo=2026-08, body: %s", rec.Body.String())
-	}
-}
-
-func TestTransaccionesPage_Error(t *testing.T) {
-	f := newHandlerFixture(t)
-	installTestTemplates(t, map[string]string{"transacciones": `{{define "content"}}<div>trans err={{.error}}</div>{{end}}`})
-
-	f.mock.ExpectQuery(regexp.QuoteMeta(qTransFindByUsuarioID)).
-		WithArgs(int64(0), 100, 0).
-		WillReturnError(errors.New("boom"))
-
-	req := httptest.NewRequest("GET", "/transacciones", nil).WithContext(ctxWithUserID(0))
-	rec := httptest.NewRecorder()
-	f.pagesH.TransaccionesPage(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 even on error, got %d", rec.Code)

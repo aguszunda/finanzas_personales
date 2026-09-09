@@ -60,7 +60,7 @@ func (h *TransaccionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		handleServiceError(w, err)
 		return
 	}
-	respondMutation(w, r, http.StatusCreated, t, mutationRedirectURL(r, transaccionesPagePath))
+	respondMutation(w, r, http.StatusCreated, t, mutationRedirectURL(r, dashboardPagePath))
 }
 
 func (h *TransaccionHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +76,7 @@ func (h *TransaccionHandler) Update(w http.ResponseWriter, r *http.Request) {
 		handleServiceError(w, err)
 		return
 	}
-	respondMutation(w, r, http.StatusOK, t, mutationRedirectURL(r, transaccionesPagePath))
+	respondMutation(w, r, http.StatusOK, t, mutationRedirectURL(r, dashboardPagePath))
 }
 
 func (h *TransaccionHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +87,7 @@ func (h *TransaccionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if middleware.IsHTMXRequest(r.Context()) {
-		respondHTMXRedirect(w, http.StatusOK, "/api/transacciones/page")
+		respondHTMXRedirect(w, http.StatusOK, dashboardPagePath)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

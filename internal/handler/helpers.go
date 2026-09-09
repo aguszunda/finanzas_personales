@@ -93,8 +93,7 @@ func setFormField(field reflect.Value, raw string) {
 var tmpl *TemplateManager
 
 const (
-	dashboardPagePath     = "/api/dashboard/page"
-	transaccionesPagePath = "/api/transacciones/page"
+	dashboardPagePath = "/api/dashboard/page"
 )
 
 func SetTemplateManager(t *TemplateManager) {

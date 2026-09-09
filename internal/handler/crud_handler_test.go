@@ -378,7 +378,7 @@ func TestTransaccionHandler_Delete_HTMX(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if rec.Header().Get("HX-Redirect") != "/api/transacciones/page" {
+	if rec.Header().Get("HX-Redirect") != "/api/dashboard/page" {
 		t.Fatalf("expected HX-Redirect header, got %q", rec.Header().Get("HX-Redirect"))
 	}
 }
